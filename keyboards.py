@@ -22,6 +22,14 @@ def get_items_keyboard(category_id):
     keyboard = InlineKeyboardMarkup(row_width=1)
     items = db.get_items_by_category(category_id)
     for item in items:
-        keyboard.add(InlineKeyboardButton(f"{item['name']} - {item['price']} грн", callback_data=f"item_{item['id']}"))
+        # Truncate long item names to prevent Telegram API errors
+        max_len = 40
+        item_name = item['name']
+        if len(item_name) > max_len:
+            item_name = item_name[:max_len-3] + "..."
+            
+        button_text = f"{item_name} - {item['price']} грн"
+        keyboard.add(InlineKeyboardButton(button_text, callback_data=f"item_{item['id']}"))
+        
     keyboard.add(InlineKeyboardButton("🔙 Назад", callback_data="back_to_categories"))
     return keyboard
