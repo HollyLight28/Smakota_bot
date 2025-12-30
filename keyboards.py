@@ -2,6 +2,18 @@
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 import database as db
 
+# Emoji mapping for categories
+category_emojis = {
+    'kompleksni-obidy': '🍱',
+    'osnovni-stravy': '🍲',
+    'fast-food': '🍔',
+    'pitsa': '🍕',
+    'salaty': '🥗',
+    'deserty': '🍰',
+    'napoi': '🥤',
+    'stravy-na-zamovlennya': '🔥'
+}
+
 def get_main_keyboard():
     """Creates the main reply keyboard."""
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
@@ -14,7 +26,8 @@ def get_categories_keyboard():
     keyboard = InlineKeyboardMarkup()
     categories = db.get_categories()
     for category in categories:
-        keyboard.add(InlineKeyboardButton(category['name'], callback_data=f"category_{category['id']}"))
+        emoji = category_emojis.get(category['id'], '🍽️') # Default emoji if not found
+        keyboard.add(InlineKeyboardButton(f"{emoji} {category['name']}", callback_data=f"category_{category['id']}"))
     return keyboard
 
 def get_items_keyboard(category_id):
