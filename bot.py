@@ -49,8 +49,22 @@ def format_cart_message(user_id):
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     user = message.from_user
-    welcome_text = f"🌟 Вітаємо в Smakota! 🌟\n\nОберіть розділ меню або перегляньте ваше замовлення:"
-    bot.reply_to(message, welcome_text, reply_markup=keyboards.get_main_keyboard())
+    
+    photo_url = "https://upload.wikimedia.org/wikipedia/commons/6/6d/Good_Food_Display_-_NCI_Visuals_Online.jpg"
+    
+    welcome_text = (
+        "🌟 **Вітаємо у 'Смакоті' — вашій улюбленій столовій!** 🌟\n\n"
+        "Смачні домашні страви за чесною ціною, тепер і з доставкою. "
+        "Готуємо з любов'ю, доставляємо зі швидкістю!\n\n"
+        "Оберіть розділ, щоб почати:"
+    )
+    
+    bot.send_photo(
+        message.chat.id,
+        photo=photo_url,
+        caption=welcome_text,
+        reply_markup=keyboards.get_main_keyboard()
+    )
     logger.info(f"User {user.id} ({user.username}) started the bot")
 
 # --- Admin Commands ---
@@ -177,9 +191,9 @@ def handle_callback(call):
                     try:
                         admin_message = (
                             f"🔔 Нове замовлення!\n\n"
-                            f"👤 Ім'я: {order_details.get('name')}\n"
-                            f"📞 Контакт: {order_details.get('contact')}\n"
-                            f"📍 Адреса: {order_details.get('address')}\n"
+                            f"🧑 Ім'я: {order_details.get('name')}\n"
+                            f"📱 Контакт: {order_details.get('contact')}\n"
+                            f"🏠 Адреса: {order_details.get('address')}\n"
                             f"💬 Коментар: {order_details.get('comment', 'немає')}\n\n"
                             f"{cart_message}"
                         )
@@ -234,9 +248,9 @@ def handle_checkout_message(message):
         cart_message, _ = format_cart_message(user_id)
         summary = (
             f"📋 Підсумок замовлення:\n\n"
-            f"👤 Ім'я: {data.get('name')}\n"
-            f"📞 Контакт: {data.get('contact')}\n"
-            f"📍 Адреса: {data.get('address')}\n\n"
+            f"🧑 Ім'я: {data.get('name')}\n"
+            f"📱 Контакт: {data.get('contact')}\n"
+            f"🏠 Адреса: {data.get('address')}\n\n"
             f"{cart_message}\n\n"
             f"Все вірно? Підтвердіть або скасуйте замовлення."
         )
