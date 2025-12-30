@@ -2,9 +2,12 @@ import telebot
 import os
 import logging
 from datetime import datetime
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from dotenv import load_dotenv
 import database as db
+import keyboards # Import the new keyboards module
+import threading
+from update_menu import update_menu_from_csv
 
 # Load environment variables
 load_dotenv()
@@ -21,35 +24,6 @@ bot = telebot.TeleBot(BOT_TOKEN)
 # Enable logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
-# FSM states (order details are still in-memory, but cart is in DB)
-USER_ORDER = {}
-USER_STATE = {}
-
-# --- Keyboard Functions ---
-
-def get_main_keyboard():
-    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.row('🍕 Меню', '🛒 Моє замовлення')
-    keyboard.row('📞 Контакти', '❓ Допомога')
-    return keyboard
-
-def get_categories_keyboard():
-    """Builds categories keyboard from database."""
-    keyboard = InlineKeyboardMarkup()
-    categories = db.get_categories()
-    for category in categories:
-        keyboard.add(InlineKeyboardButton(category['name'], callback_data=f"category_{category['id']}"))
-    return keyboard
-
-def get_items_keyboard(category_id):
-    """Builds items keyboard for a category from database."""
-    keyboard = InlineKeyboardMarkup()
-    items = db.get_items_by_category(category_id)
-    for item in items:
-        keyboard.add(InlineKeyboardButton(f"{item['name']} - {item['price']} грн", callback_data=f"item_{item['id']}"))
-    keyboard.add(InlineKeyboardButton("🔙 Назад", callback_data="back_to_categories"))
-    return keyboard
 
 # --- Cart Formatting ---
 
@@ -76,12 +50,37 @@ def format_cart_message(user_id):
 def send_welcome(message):
     user = message.from_user
     welcome_text = f"🌟 Вітаємо в Smakota! 🌟\n\nОберіть розділ меню або перегляньте ваше замовлення:"
-    bot.reply_to(message, welcome_text, reply_markup=get_main_keyboard())
+    bot.reply_to(message, welcome_text, reply_markup=keyboards.get_main_keyboard())
     logger.info(f"User {user.id} ({user.username}) started the bot")
+
+# --- Admin Commands ---
+
+def _run_update_in_thread(message):
+    """Helper to run the update and notify the admin."""
+    try:
+        logger.info(f"Admin {message.from_user.id} triggered menu update.")
+        update_menu_from_csv()
+        bot.reply_to(message, "✅ Меню успішно оновлено!")
+        logger.info("Menu update process finished successfully.")
+    except Exception as e:
+        logger.error(f"Menu update failed: {e}")
+        bot.reply_to(message, f"❌ Помилка під час оновлення меню: {e}")
+
+@bot.message_handler(commands=['updatemenu'])
+def handle_update_menu(message):
+    if message.from_user.id != ADMIN_ID:
+        bot.reply_to(message, "Ця команда доступна лише адміністратору.")
+        return
+    
+    bot.reply_to(message, "⏳ Починаю оновлення меню... Це може зайняти хвилину.")
+    
+    # Run in a separate thread to not block the bot
+    update_thread = threading.Thread(target=_run_update_in_thread, args=(message,))
+    update_thread.start()
 
 @bot.message_handler(func=lambda message: message.text == '🍕 Меню')
 def show_menu(message):
-    bot.reply_to(message, "Оберіть категорію:", reply_markup=get_categories_keyboard())
+    bot.reply_to(message, "Оберіть категорію:", reply_markup=keyboards.get_categories_keyboard())
 
 @bot.message_handler(func=lambda message: message.text == '🛒 Моє замовлення')
 def show_cart(message):
@@ -133,7 +132,7 @@ def handle_callback(call):
             bot.edit_message_text(
                 chat_id=call.message.chat.id, message_id=call.message.message_id,
                 text=f"Оберіть страву з категорії {category_name}:",
-                reply_markup=get_items_keyboard(category_id)
+                reply_markup=keyboards.get_items_keyboard(category_id)
             )
         
         elif data.startswith("item_"):
@@ -146,7 +145,7 @@ def handle_callback(call):
         elif data == "back_to_categories" or data == "show_menu":
             bot.edit_message_text(
                 chat_id=call.message.chat.id, message_id=call.message.message_id,
-                text="Оберіть категорію:", reply_markup=get_categories_keyboard()
+                text="Оберіть категорію:", reply_markup=keyboards.get_categories_keyboard()
             )
         
         elif data == "checkout":
@@ -155,7 +154,7 @@ def handle_callback(call):
                 bot.answer_callback_query(call.id, "Ваш кошик порожній!", show_alert=True)
                 return
 
-            USER_STATE[user_id] = {'step': 'name'}
+            db.set_user_state(user_id, 'checkout_name')
             bot.edit_message_text(
                 chat_id=call.message.chat.id, message_id=call.message.message_id,
                 text="Почнемо оформлення замовлення.\n\nВведіть ваше ім'я:"
@@ -169,17 +168,18 @@ def handle_callback(call):
             )
             
         elif data == "confirm_order":
-            if user_id in USER_ORDER and 'name' in USER_ORDER[user_id]:
+            user_state = db.get_user_state(user_id)
+            if user_state and user_state['state'] == 'checkout_confirmation':
+                order_details = user_state['data']
                 cart_message, total = format_cart_message(user_id)
                 
                 if ADMIN_ID:
                     try:
-                        order_details = USER_ORDER[user_id]
                         admin_message = (
                             f"🔔 Нове замовлення!\n\n"
-                            f"👤 Ім'я: {order_details['name']}\n"
-                            f"📞 Контакт: {order_details['contact']}\n"
-                            f"📍 Адреса: {order_details['address']}\n"
+                            f"👤 Ім'я: {order_details.get('name')}\n"
+                            f"📞 Контакт: {order_details.get('contact')}\n"
+                            f"📍 Адреса: {order_details.get('address')}\n"
                             f"💬 Коментар: {order_details.get('comment', 'немає')}\n\n"
                             f"{cart_message}"
                         )
@@ -194,13 +194,11 @@ def handle_callback(call):
                 
                 # Cleanup
                 db.clear_cart(user_id)
-                if user_id in USER_ORDER: del USER_ORDER[user_id]
-                if user_id in USER_STATE: del USER_STATE[user_id]
+                db.clear_user_state(user_id)
         
         elif data == "cancel_order":
+            db.clear_user_state(user_id)
             bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text="❌ Замовлення скасовано.")
-            if user_id in USER_ORDER: del USER_ORDER[user_id]
-            if user_id in USER_STATE: del USER_STATE[user_id]
 
     except Exception as e:
         logger.error(f"Error in callback handler: {e}")
@@ -208,47 +206,51 @@ def handle_callback(call):
 
 # --- Checkout Text Handlers ---
 
-@bot.message_handler(func=lambda message: USER_STATE.get(message.from_user.id) is not None)
+@bot.message_handler(func=lambda message: db.get_user_state(message.from_user.id) is not None)
 def handle_checkout_message(message):
     user_id = message.from_user.id
-    current_step = USER_STATE.get(user_id, {}).get('step')
+    state_info = db.get_user_state(user_id)
     
-    if current_step == 'name':
-        USER_ORDER[user_id] = {'name': message.text}
-        USER_STATE[user_id]['step'] = 'contact'
+    if not state_info:
+        return
+
+    state = state_info['state']
+    data = state_info['data']
+
+    if state == 'checkout_name':
+        data['name'] = message.text
+        db.set_user_state(user_id, 'checkout_contact', data)
         bot.reply_to(message, "Тепер введіть ваш номер телефону:")
         
-    elif current_step == 'contact':
-        USER_ORDER[user_id]['contact'] = message.text
-        USER_STATE[user_id]['step'] = 'address'
+    elif state == 'checkout_contact':
+        data['contact'] = message.text
+        db.set_user_state(user_id, 'checkout_address', data)
         bot.reply_to(message, "Тепер введіть адресу доставки:")
         
-    elif current_step == 'address':
-        USER_ORDER[user_id]['address'] = message.text
-        USER_STATE[user_id]['step'] = 'comment'
+    elif state == 'checkout_address':
+        data['address'] = message.text
+        db.set_user_state(user_id, 'checkout_confirmation', data) # Move to confirmation state
         
         cart_message, _ = format_cart_message(user_id)
         summary = (
             f"📋 Підсумок замовлення:\n\n"
-            f"👤 Ім'я: {USER_ORDER[user_id]['name']}\n"
-            f"📞 Контакт: {USER_ORDER[user_id]['contact']}\n"
-            f"📍 Адреса: {message.text}\n\n"
+            f"👤 Ім'я: {data.get('name')}\n"
+            f"📞 Контакт: {data.get('contact')}\n"
+            f"📍 Адреса: {data.get('address')}\n\n"
             f"{cart_message}\n\n"
-            f"Додайте коментар або підтвердіть замовлення:"
+            f"Все вірно? Підтвердіть або скасуйте замовлення."
         )
-        markup = InlineKeyboardMarkup(row_width=1)
+        markup = InlineKeyboardMarkup(row_width=2)
         markup.add(
-            InlineKeyboardButton("✅ Підтвердити замовлення", callback_data="confirm_order"),
+            InlineKeyboardButton("✅ Підтвердити", callback_data="confirm_order"),
             InlineKeyboardButton("❌ Скасувати", callback_data="cancel_order")
         )
         bot.reply_to(message, summary, reply_markup=markup)
-        # We go to a confirmation step, no more text input expected unless they cancel
-        USER_STATE[user_id]['step'] = 'confirmation'
 
 
 @bot.message_handler(func=lambda message: True)
 def handle_default_message(message):
-    bot.reply_to(message, "Будь ласка, використовуйте кнопки для взаємодії з ботом.", reply_markup=get_main_keyboard())
+    bot.reply_to(message, "Будь ласка, використовуйте кнопки для взаємодії з ботом.", reply_markup=keyboards.get_main_keyboard())
 
 
 if __name__ == '__main__':
