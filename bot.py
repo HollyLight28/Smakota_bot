@@ -2,7 +2,7 @@ import telebot
 import os
 import logging
 from datetime import datetime
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice
 from dotenv import load_dotenv
 import database as db
 import keyboards # Import the new keyboards module
@@ -15,8 +15,12 @@ load_dotenv()
 # Configuration
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 ADMIN_ID = int(os.getenv('ADMIN_ID', 0))
+PAYMENT_PROVIDER_TOKEN = os.getenv('PAYMENT_PROVIDER_TOKEN')
+
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN must be set in .env file")
+if not PAYMENT_PROVIDER_TOKEN:
+    logger.warning("PAYMENT_PROVIDER_TOKEN is not set. Payments will not work.")
 
 # Initialize bot
 bot = telebot.TeleBot(BOT_TOKEN)
@@ -180,35 +184,6 @@ def handle_callback(call):
                 chat_id=call.message.chat.id, message_id=call.message.message_id,
                 text="❌ Кошик очищено!"
             )
-            
-        elif data == "confirm_order":
-            user_state = db.get_user_state(user_id)
-            if user_state and user_state['state'] == 'checkout_confirmation':
-                order_details = user_state['data']
-                cart_message, total = format_cart_message(user_id)
-                
-                if ADMIN_ID:
-                    try:
-                        admin_message = (
-                            f"🔔 Нове замовлення!\n\n"
-                            f"🧑 Ім'я: {order_details.get('name')}\n"
-                            f"📱 Контакт: {order_details.get('contact')}\n"
-                            f"🏠 Адреса: {order_details.get('address')}\n"
-                            f"💬 Коментар: {order_details.get('comment', 'немає')}\n\n"
-                            f"{cart_message}"
-                        )
-                        bot.send_message(ADMIN_ID, admin_message)
-                    except Exception as e:
-                        logger.error(f"Failed to send order to admin: {e}")
-                
-                bot.edit_message_text(
-                    chat_id=call.message.chat.id, message_id=call.message.message_id,
-                    text=f"✅ Дякуємо! Ваше замовлення на суму {total} грн прийнято."
-                )
-                
-                # Cleanup
-                db.clear_cart(user_id)
-                db.clear_user_state(user_id)
         
         elif data == "cancel_order":
             db.clear_user_state(user_id)
@@ -217,6 +192,56 @@ def handle_callback(call):
     except Exception as e:
         logger.error(f"Error in callback handler: {e}")
         bot.answer_callback_query(call.id, "Виникла помилка, спробуйте ще раз", show_alert=True)
+
+# --- Payment Handlers ---
+
+@bot.pre_checkout_query_handler(func=lambda query: True)
+def process_pre_checkout_query(pre_checkout_query):
+    bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
+
+@bot.message_handler(content_types=['successful_payment'])
+def got_payment(message):
+    user_id = message.from_user.id
+    payment_info = message.successful_payment
+    total_amount = payment_info.total_amount / 100 # Convert back from kopecks
+    currency = payment_info.currency
+
+    state_info = db.get_user_state(user_id)
+    if not state_info or state_info['state'] != 'waiting_for_payment':
+        # Should not happen ideally, but handles edge cases
+        bot.reply_to(message, "Дякуємо за оплату! Але ми не знайшли активного замовлення.")
+        return
+
+    order_details = state_info['data']
+    cart_message, _ = format_cart_message(user_id)
+
+    # Notify Admin
+    if ADMIN_ID:
+        try:
+            admin_message = (
+                f"🔔 Нове ОПЛАЧЕНЕ замовлення!\n"
+                f"💰 Сума: {total_amount} {currency}\n"
+                f"🆔 ID транзакції: {payment_info.provider_payment_charge_id}\n\n"
+                f"🧑 Ім'я: {order_details.get('name')}\n"
+                f"📱 Контакт: {order_details.get('contact')}\n"
+                f"🏠 Адреса: {order_details.get('address')}\n"
+                f"💬 Коментар: {order_details.get('comment', 'немає')}\n\n"
+                f"{cart_message}"
+            )
+            bot.send_message(ADMIN_ID, admin_message)
+        except Exception as e:
+            logger.error(f"Failed to send order to admin: {e}")
+
+    # Notify User
+    bot.reply_to(
+        message,
+        f"✅ Оплата успішна! Ваше замовлення на суму {total_amount} {currency} прийнято та готується."
+    )
+
+    # Cleanup
+    db.clear_cart(user_id)
+    db.clear_user_state(user_id)
+
 
 # --- Checkout Text Handlers ---
 
@@ -243,23 +268,45 @@ def handle_checkout_message(message):
         
     elif state == 'checkout_address':
         data['address'] = message.text
-        db.set_user_state(user_id, 'checkout_confirmation', data) # Move to confirmation state
+        db.set_user_state(user_id, 'waiting_for_payment', data) # Move to payment state
+
+        cart_message, total_price = format_cart_message(user_id)
+
+        # Prepare prices for invoice (in kopecks)
+        cart_items = db.get_cart_items(user_id)
+        prices = []
+        for item in cart_items:
+            # item['price'] is float, LabeledPrice needs integer amount in smallest currency unit (kopecks)
+            # Use round() to avoid floating point errors (e.g. 1.15 * 100 = 114.999...)
+            item_amount = int(round(item['price'] * 100)) * item['quantity']
+            prices.append(LabeledPrice(label=f"{item['name']} x{item['quantity']}", amount=item_amount))
         
-        cart_message, _ = format_cart_message(user_id)
         summary = (
-            f"📋 Підсумок замовлення:\n\n"
+            f"📋 Дані доставки:\n\n"
             f"🧑 Ім'я: {data.get('name')}\n"
             f"📱 Контакт: {data.get('contact')}\n"
             f"🏠 Адреса: {data.get('address')}\n\n"
-            f"{cart_message}\n\n"
-            f"Все вірно? Підтвердіть або скасуйте замовлення."
+            f"Для завершення замовлення, будь ласка, здійсніть оплату."
         )
-        markup = InlineKeyboardMarkup(row_width=2)
-        markup.add(
-            InlineKeyboardButton("✅ Підтвердити", callback_data="confirm_order"),
-            InlineKeyboardButton("❌ Скасувати", callback_data="cancel_order")
-        )
+
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton("❌ Скасувати замовлення", callback_data="cancel_order"))
+
         bot.reply_to(message, summary, reply_markup=markup)
+
+        if PAYMENT_PROVIDER_TOKEN:
+            bot.send_invoice(
+                message.chat.id,
+                title="Замовлення в Смакота",
+                description="Оплата доставки їжі",
+                invoice_payload=f"order_{user_id}",
+                provider_token=PAYMENT_PROVIDER_TOKEN,
+                currency="UAH",
+                prices=prices,
+                start_parameter="checkout-smakota"
+            )
+        else:
+            bot.reply_to(message, "⚠️ Помилка: Платіжний токен не налаштовано. Зверніться до адміністратора.")
 
 
 @bot.message_handler(func=lambda message: True)
