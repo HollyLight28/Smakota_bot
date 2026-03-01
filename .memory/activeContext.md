@@ -1,22 +1,38 @@
 # Active Context
 
-## Current Focus
-- WebApp deployed to GitHub Pages: https://hollylight28.github.io/smakota-telegram-app/
-- WebApp repo: https://github.com/HollyLight28/smakota-telegram-app.git (public)
-- Bot repo: https://github.com/HollyLight28/Smakota_bot.git (private)
-- Updated keyboards.py with real GitHub Pages URL.
-- Created deploy_webapp.py for automated deployment.
+## Поточний статус
+- ✅ Рефакторинг bot.py завершено
+- ✅ Бот працює на модульній версії (run.py)
+- ⬜ Git push ще не зроблено (потрібен пароль/SSH)
 
-## Recent Actions
-- Redesigned webapp with premium UI (Outfit font, gradients, animations).
-- Fixed image cropping: now uses object-fit: contain with 4:3 aspect ratio.
-- Made responsive grid: 2 cols mobile, 3 cols tablet, 4 cols desktop.
-- Created deploy_webapp.py script.
-- User needs to re-upload updated index.html to GitHub (old version currently live).
+## Що зроблено
+1. **Рефакторинг** — розбили `bot.py` (1424 рядки) на 10 модулів:
+   - `bot/__init__.py` — екземпляр бота
+   - `bot/config.py` — конфігурація
+   - `bot/utils.py` — утиліти (format_cart, clean_phone, maps_url)
+   - `bot/handlers/start.py` — /start, /help
+   - `bot/handlers/client.py` — webapp, кошик, контакти
+   - `bot/handlers/admin.py` — адмін-функції
+   - `bot/handlers/courier.py` — кур'єрські замовлення
+   - `bot/handlers/dispatcher.py` — ручне замовлення
+   - `bot/handlers/hall.py` — зал (Наташа)
+   - `bot/handlers/kitchen.py` — кухня, шоппінг-лист
+   - `bot/handlers/callbacks.py` — ВСІ inline-кнопки
+   - `bot/handlers/checkout.py` — FSM оформлення
+   - `bot/handlers/roles.py` — тестові ролі
+   - `bot/handlers/default.py` — catch-all
+   - `run.py` — нова точка входу
 
-## Next Steps
-- User to re-upload index.html + data.js to smakota-telegram-app repo.
-- Set up cron for hourly menu sync (Mon-Fri 9-17, Sat 9-16, Sun off).
-- Set up bot working hours (Mon-Fri 9-17, Sat 9-16, Sun off).
-- Refactor bot.py into modular structure.
-- Write tests for database and cart logic.
+2. **Виправлені баги:**
+   - Відсутня `get_couriers()` в database.py
+   - Відсутній декоратор `@bot.message_handler(commands=['start'])`
+   - `tel:` URL без міжнародного формату (+380) крашив бота
+   - `answer_callback_query` на протухлий callback крашив бота
+   - Дублікати кур'єрів при `set_role_courier`
+   - `checkout_use_history` був недосяжний через невірний indent
+
+## Наступні кроки
+1. `git push` (Вова має зробити руками або налаштувати SSH)
+2. Протестувати ВСІ ролі: клієнт, адмін, кур'єр
+3. Налаштувати cron для автооновлення меню
+4. Написати тести для database.py
