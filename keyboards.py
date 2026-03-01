@@ -19,7 +19,7 @@ def get_client_keyboard():
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
     # Створюємо кнопку WebApp (замініть URL на ваш реальний хостинг)
     from telebot.types import WebAppInfo
-    web_app = WebAppInfo(url="https://vova-smakota.github.io/menu") # Це приклад!
+    web_app = WebAppInfo(url="https://HollyLight28.github.io/smakota-telegram-app/") 
     
     keyboard.row(KeyboardButton('🍕 ВІДКРИТИ МЕНЮ', web_app=web_app))
     keyboard.row('🛒 Моє замовлення', '📞 Контакти')

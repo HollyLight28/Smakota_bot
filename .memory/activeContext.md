@@ -1,15 +1,22 @@
 # Active Context
 
 ## Current Focus
-- Completed Natasha's (Hall) order management and Kitchen's templated shopping list.
+- WebApp deployed to GitHub Pages: https://hollylight28.github.io/smakota-telegram-app/
+- WebApp repo: https://github.com/HollyLight28/smakota-telegram-app.git (public)
+- Bot repo: https://github.com/HollyLight28/Smakota_bot.git (private)
+- Updated keyboards.py with real GitHub Pages URL.
+- Created deploy_webapp.py for automated deployment.
 
 ## Recent Actions
-- Implemented Natasha's "Active Checks" view so she can close orders to add them to her cash report.
-- Added `shopping_templates` to the database with default items (Flour, Oil, etc.).
-- Created a button-based UI for Kitchen staff to quickly add items from templates.
-- Verified Natasha's cash report correctly filters by her `hall_staff_id`.
+- Redesigned webapp with premium UI (Outfit font, gradients, animations).
+- Fixed image cropping: now uses object-fit: contain with 4:3 aspect ratio.
+- Made responsive grid: 2 cols mobile, 3 cols tablet, 4 cols desktop.
+- Created deploy_webapp.py script.
+- User needs to re-upload updated index.html to GitHub (old version currently live).
 
 ## Next Steps
-- Implement `/add_kitchen_staff` for role management.
-- Ensure the Boss (Admin) can view the consolidated daily report for both Couriers and Hall Staff.
-- Final code cleanup and bug testing.
+- User to re-upload index.html + data.js to smakota-telegram-app repo.
+- Set up cron for hourly menu sync (Mon-Fri 9-17, Sat 9-16, Sun off).
+- Set up bot working hours (Mon-Fri 9-17, Sat 9-16, Sun off).
+- Refactor bot.py into modular structure.
+- Write tests for database and cart logic.
