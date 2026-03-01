@@ -4,6 +4,7 @@ import csv
 import logging
 import re
 import os
+import hashlib
 from database import DATABASE_FILE, setup_database
 
 # Configure logging
@@ -11,8 +12,11 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 CSV_FILE = 'menu.csv'
 
+import hashlib
+
 def slugify(text):
-    """Generates a URL-friendly slug from a string."""
+    """Generates a URL-friendly slug from a string with collision avoidance."""
+    text_orig = text
     text = text.lower()
     # Basic transliteration for Ukrainian characters
     ua_map = {
@@ -28,42 +32,47 @@ def slugify(text):
     # Replace spaces and remove invalid characters
     text = re.sub(r'[^\w\s-]', '', text).strip()
     text = re.sub(r'\s+', '-', text)
-    return text
+    
+    # If slug is empty or too short, or to ensure uniqueness for similar names
+    if not text:
+        text = "cat"
+    
+    # Add a short hash of the original name to prevent collisions (e.g., "Піца!" vs "Піца?")
+    short_hash = hashlib.md5(text_orig.encode()).hexdigest()[:4]
+    return f"{text}-{short_hash}"
 
 def parse_price(price_str):
     """Extracts a number from a price string like '40 грн.'."""
     if not price_str:
         return 0.0
     # Find all digits and dots, then join them
-    price_parts = re.findall(r'\d+\.?\d*', price_str)
+    price_parts = re.findall(r'\d+\.?\d*', str(price_str))
     if price_parts:
         return float(price_parts[0])
     return 0.0
 
 def update_menu_from_csv():
-    """Clear existing menu and populate it from the CSV file."""
+    """Update menu from CSV without full deletion to preserve cart items."""
     if not os.path.exists(CSV_FILE):
         logging.error(f"'{CSV_FILE}' not found. Please make sure the file exists.")
         return
 
-    # Ensure tables exist before doing anything
     setup_database()
 
     try:
         conn = sqlite3.connect(DATABASE_FILE)
+        conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-
-        # --- Clear existing menu data ---
-        cursor.execute("DELETE FROM items")
-        cursor.execute("DELETE FROM categories")
-        logging.info("Cleared 'items' and 'categories' tables.")
 
         # --- Read CSV and prepare data ---
         with open(CSV_FILE, mode='r', encoding='utf-8') as infile:
             reader = csv.DictReader(infile)
             
-            categories = {} # To store unique categories: {name: id}
-            items_to_insert = []
+            # Fetch existing items to preserve IDs
+            cursor.execute("SELECT id, name FROM items")
+            existing_items = {row['name']: row['id'] for row in cursor.fetchall()}
+            
+            active_item_ids = []
 
             for row in reader:
                 category_name = row.get('Category', '').strip()
@@ -73,39 +82,44 @@ def update_menu_from_csv():
                     continue
 
                 # --- Handle Categories ---
-                if category_name not in categories:
-                    category_id = slugify(category_name)
-                    categories[category_name] = category_id
+                category_id = slugify(category_name)
+                cursor.execute('INSERT OR REPLACE INTO categories (id, name) VALUES (?, ?)', (category_id, category_name))
 
                 # --- Handle Items ---
                 price = parse_price(row.get('Price', ''))
-                
-                # Combine description and weight for a full description
                 description = row.get('Description', '').strip()
                 weight = row.get('Weight', '').strip()
                 full_description = f"{description} ({weight})" if description and weight else description or weight
 
-                items_to_insert.append((
-                    item_name,
-                    price,
-                    categories[category_name],
-                    full_description
-                ))
+                item_id = existing_items.get(item_name)
+                
+                if item_id:
+                    cursor.execute('''
+                        UPDATE items 
+                        SET name=?, price=?, category_id=?, description=?, is_active=1
+                        WHERE id=?
+                    ''', (item_name, price, category_id, full_description, item_id))
+                    active_item_ids.append(item_id)
+                else:
+                    cursor.execute('''
+                        INSERT INTO items (name, price, category_id, description, is_active)
+                        VALUES (?, ?, ?, ?, 1)
+                    ''', (item_name, price, category_id, full_description))
+                    active_item_ids.append(cursor.lastrowid)
 
-        # --- Insert data into database ---
-        
-        # Populate categories
-        categories_to_insert = [(cat_id, cat_name) for cat_name, cat_id in categories.items()]
-        cursor.executemany("INSERT INTO categories (id, name) VALUES (?, ?)", categories_to_insert)
-        logging.info(f"Inserted {len(categories_to_insert)} new categories.")
-
-        # Populate items
-        cursor.executemany("INSERT INTO items (name, price, category_id, description) VALUES (?, ?, ?, ?)", items_to_insert)
-        logging.info(f"Inserted {len(items_to_insert)} new items.")
+        # Deactivate items not in the CSV
+        if active_item_ids:
+            placeholders = ','.join(['?'] * len(active_item_ids))
+            cursor.execute(f'UPDATE items SET is_active = 0 WHERE id NOT IN ({placeholders})', active_item_ids)
+        else:
+            cursor.execute('UPDATE items SET is_active = 0')
 
         conn.commit()
         conn.close()
-        logging.info("Successfully updated the database menu from CSV.")
+        logging.info("Successfully updated the database menu from CSV (non-destructive).")
+
+    except (sqlite3.Error, IOError, csv.Error) as e:
+        logging.error(f"An error occurred during menu update: {e}")
 
     except (sqlite3.Error, IOError, csv.Error) as e:
         logging.error(f"An error occurred during menu update: {e}")
