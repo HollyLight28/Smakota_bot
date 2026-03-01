@@ -524,6 +524,11 @@ def get_chefs():
     conn = get_db_connection()
     return conn.execute('SELECT * FROM chefs').fetchall()
 
+def get_couriers():
+    """Fetches all registered couriers."""
+    conn = get_db_connection()
+    return conn.execute('SELECT * FROM couriers').fetchall()
+
 def add_courier(name, chat_id):
     """Adds a new courier."""
     conn = get_db_connection()

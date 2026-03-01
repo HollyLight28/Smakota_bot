@@ -26,7 +26,7 @@ bot = telebot.TeleBot(BOT_TOKEN)
 
 # Enable logging to file and stream
 logging.basicConfig(
-    level=logging.INFO, 
+    level=logging.DEBUG, 
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler("smakota_bot.log"),
@@ -142,7 +142,12 @@ def register_dispatcher(message):
         bot.reply_to(message, f"✅ Диспетчер **{name}** (ID: {chat_id}) успішно доданий!", parse_mode='Markdown')
     except Exception as e:
         bot.reply_to(message, f"❌ Помилка: {e}")
+
+@bot.message_handler(commands=['start', 'help'])
+def send_welcome(message):
     user = message.from_user
+    logger.info(f"--- START COMMAND RECEIVED FROM {user.id} ({user.first_name}) ---")
+    
     # Save user to DB
     conn = db.get_db_connection()
     conn.execute('INSERT OR REPLACE INTO users (chat_id, username, first_name) VALUES (?, ?, ?)', (user.id, user.username, user.first_name))
@@ -954,7 +959,10 @@ def handle_callback(call):
 
     except Exception as e:
         logger.error(f"Callback error: {e}")
-        bot.answer_callback_query(call.id, "⚠️ Виникла помилка.")
+        try:
+            bot.answer_callback_query(call.id, "⚠️ Виникла помилка.")
+        except Exception:
+            pass  # Callback вже протух — ігноруємо
 
 @bot.message_handler(func=lambda message: message.text == '📊 Мій звіт за сьогодні')
 def show_courier_report(message):
@@ -1381,6 +1389,8 @@ def set_role_admin(message):
 def set_role_courier(message):
     """Sets the current user as a courier and refreshes menu."""
     user_id = message.from_user.id
+    # Спочатку видаляємо, щоб не було дублікатів
+    db.remove_courier_by_chat_id(user_id)
     db.add_courier(f"Test_{message.from_user.first_name}", user_id)
     bot.reply_to(
         message, 
