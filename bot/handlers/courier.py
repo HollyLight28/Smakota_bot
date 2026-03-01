@@ -1,130 +1,99 @@
 import re
+from datetime import datetime
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from bot import bot
-from bot.utils import logger, clean_phone, get_maps_url
 import database as db
 import keyboards
+from bot.utils import logger
 
-
-def escape_md(text: str) -> str:
+def escape_markdown(text):
     """Екранує спецсимволи MarkdownV1."""
     if not text: return ""
     return re.sub(r'[_*`\[\]]', r'\\\g<0>', str(text))
 
-
 @bot.message_handler(func=lambda message: message.text == '🛵 Мої доставки (в роботі)')
 def show_courier_orders(message):
-    """Показує кур'єру його активні замовлення з маршрутом."""
+    """Показує кур'єру його активні замовлення."""
     user_id = message.from_user.id
-    logger.info(f"Courier {user_id} checking orders")
-
-    # Перевіряємо чи це кур'єр
-    couriers = db.get_couriers()
-    courier = next((c for c in couriers if c['chat_id'] == user_id), None)
-
-    if not courier:
-        bot.reply_to(message, "❌ Ви не зареєстровані як кур'єр. Зверніться до адміна.")
-        return
-
-    # Контроль зміни
-    if courier['shift_status'] == 'off':
-        markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("✅ Почати зміну", callback_data="shift_on"))
-        bot.reply_to(
-            message,
-            "🔌 Ви зараз **поза зміною**. Натисніть кнопку, щоб почати роботу та отримувати замовлення.",
-            reply_markup=markup,
-            parse_mode='Markdown'
-        )
-        return
-
+    
+    # Перевіряємо статус зміни
     conn = db.get_db_connection()
-    # Показуємо замовлення, які прийняті, призначені або в дорозі
+    courier = conn.execute('SELECT * FROM couriers WHERE chat_id = ?', (user_id,)).fetchone()
+    
+    if not courier:
+        bot.reply_to(message, "❌ Ви не зареєстровані як кур'єр.")
+        return
+
+    if courier['shift_status'] == 'off':
+        bot.reply_to(message, "🔌 Ви поза зміною. Натисніть кнопку виходу на зміну!", reply_markup=keyboards.get_courier_keyboard(user_id))
+        return
+
+    # Замовлення, які прийняті або вже призначені цьому кур'єру
     orders = conn.execute('''
-        SELECT * FROM orders
+        SELECT * FROM orders 
         WHERE courier_id = ? AND status IN ('accepted', 'assigned', 'delivery')
-        ORDER BY CASE WHEN route_order IS NULL THEN 999 ELSE route_order END ASC, created_at DESC
+        ORDER BY created_at DESC
     ''', (user_id,)).fetchall()
 
     if not orders:
-        bot.reply_to(message, "📭 У вас немає активних доставок на даний момент.\n\n*Перевірте, чи ви почали зміну.*", parse_mode='Markdown')
+        bot.reply_to(message, "📭 У вас немає активних доставок.\n\n_Шеф ще не призначив на вас замовлення._", parse_mode='Markdown')
         return
 
     for order in orders:
-        courier_markup = InlineKeyboardMarkup()
-        courier_markup.add(InlineKeyboardButton(
-            "✅ ЗАМОВЛЕННЯ ДОСТАВЛЕНО",
-            callback_data=f"courier_delivered_{order['id']}"
-        ))
-
-        # Кнопки навігації
-        address = order['delivery_address']
-        maps_url = get_maps_url(address)
-        raw_phone = str(order['delivery_phone'])
-        phone = clean_phone(raw_phone)
-
-        courier_markup.add(
-            InlineKeyboardButton("🗺️ Побудувати маршрут", url=maps_url),
-            InlineKeyboardButton("📞 Зателефонувати", url=f"tel:{phone}")
+        text = (
+            f"📦 **ЗАМОВЛЕННЯ #{order['id']}**\n\n"
+            f"👤 {order['delivery_name']}\n"
+            f"📍 {order['delivery_address']}\n"
+            f"💰 Сума: **{order['total_amount']} грн**\n"
+            f"💳 Оплата: {order['payment_method']}\n"
         )
+        if order['delivery_comment']:
+            text += f"📝 Коментар: _{order['delivery_comment']}_"
 
-        # Екрануємо дані для Markdown
-        route_prefix = f"#{order['route_order']} " if order['route_order'] else ""
-        safe_address = escape_md(address.upper())
-        safe_name = escape_md(order['delivery_name'])
-        safe_comment = escape_md(order['comment'] if order['comment'] else '---')
-
-        msg = (
-            f"📍 **{route_prefix}АДРЕСА: {safe_address}**\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"📞 **Телефон:** `{raw_phone}`\n"
-            f"👤 **Клієнт:** {safe_name}\n"
-            f"💰 **Сума:** {order['total_amount']} грн ({order['payment_method']})\n"
-            f"📝 **Коментар:** {safe_comment}\n"
-            f"📦 **Замовлення:** #{order['id']}"
-        )
-        try:
-            bot.send_message(user_id, msg, reply_markup=courier_markup, parse_mode='Markdown')
-        except Exception as e:
-            logger.error(f"Markdown error in courier msg: {e}")
-            # Спроба відправити без Markdown якщо впало
-            bot.send_message(user_id, msg.replace('*', '').replace('`', ''), reply_markup=courier_markup)
-
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton("✅ ДОСТАВЛЕНО", callback_data=f"courier_delivered_{order['id']}"))
+        markup.add(InlineKeyboardButton("📞 Зателефонувати", url=f"tel:{order['delivery_phone']}"))
+        
+        bot.send_message(user_id, text, reply_markup=markup, parse_mode='Markdown')
 
 @bot.message_handler(func=lambda message: message.text == '📊 Мій звіт за сьогодні')
-def show_courier_report(message):
-    """Кнопка 'Мій звіт за сьогодні'."""
-    handle_my_report(message)
-
-
-@bot.message_handler(commands=['my_report'])
 def handle_my_report(message):
-    """Звіт кур'єра за сьогодні: кількість і сума."""
+    """Звіт кур'єра за сьогодні."""
     user_id = message.from_user.id
-    count, total = db.get_daily_report(user_id)
+    today = datetime.now().strftime('%Y-%m-%d')
+    conn = db.get_db_connection()
+    
+    done = conn.execute(
+        'SELECT COUNT(*), SUM(total_amount) FROM orders WHERE courier_id = ? AND status = "completed" AND date(created_at) = ?',
+        (user_id, today)
+    ).fetchone()
+    
+    active = conn.execute(
+        'SELECT COUNT(*) FROM orders WHERE courier_id = ? AND status IN ("accepted", "assigned", "delivery")',
+        (user_id,)
+    ).fetchone()
 
-    if count == 0:
-        bot.reply_to(message, "💤 Сьогодні замовлень ще не було.")
-    else:
-        bot.reply_to(
-            message,
-            f"📊 **Ваш звіт за сьогодні:**\n\n"
-            f"📦 Доставлено: **{count}**\n"
-            f"💰 Готівка: **{total} грн**\n\n"
-            f"Продуктивного дня! 🚀",
-            parse_mode='Markdown'
-        )
+    done_count = done[0] if done[0] else 0
+    done_total = done[1] if done[1] else 0
+    active_count = active[0] if active[0] else 0
+
+    text = (
+        f"📊 **Твій звіт за сьогодні:**\n\n"
+        f"✅ Доставлено: **{done_count}**\n"
+        f"💰 Каса: **{done_total} грн**\n\n"
+        f"⏳ У роботі зараз: **{active_count}**"
+    )
+    bot.reply_to(message, text, parse_mode='Markdown')
 
 @bot.message_handler(func=lambda message: message.text in ['🟢 Вийти на зміну', '🔴 Завершити зміну'])
 def toggle_shift(message):
-    """Вмикає/вимикає зміну кур'єра."""
+    """Вмикає/вимикає зміну."""
     user_id = message.from_user.id
     new_status = 'on' if '🟢' in message.text else 'off'
     
-    # Викликаємо функцію оновлення статусу
     conn = db.get_db_connection()
     conn.execute('UPDATE couriers SET shift_status = ? WHERE chat_id = ?', (new_status, user_id))
     conn.commit()
     
-    text = "🚀 **Ви на зміні!** Тепер ви бачите замовлення." if new_status == 'on' else "🔌 **Зміну завершено.** Гарного відпочинку!"
+    text = "🚀 **Ви на зміні!** Чекайте на замовлення." if new_status == 'on' else "🔌 **Зміну завершено.**"
     bot.reply_to(message, text, reply_markup=keyboards.get_courier_keyboard(user_id), parse_mode='Markdown')

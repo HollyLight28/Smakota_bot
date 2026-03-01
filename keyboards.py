@@ -37,7 +37,7 @@ def get_courier_keyboard(user_id=None):
 
     keyboard.row('🛵 Мої доставки (в роботі)')
     keyboard.row(shift_text)
-    keyboard.row('📊 Мій звіт за сьогодні', '❓ Допомога')
+    keyboard.row('📊 Мій звіт за сьогодні')
     return keyboard
 
 def get_admin_keyboard():

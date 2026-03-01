@@ -30,6 +30,7 @@ def handle_callback(call):
             
             # Зберігаємо роль в базі для залізної пам'яті
             db.set_user_current_role(user_id, role)
+            db.clear_user_state(user_id) # ОЧИЩАЄМО ЗОМБІ-СЕРЕДОВИЩЕ
             
             if role == "admin":
                 bot.edit_message_text("👑 Інтерфейс змінено на **Адмін (Шеф)**.", call.message.chat.id, call.message.message_id, reply_markup=None, parse_mode='Markdown')
