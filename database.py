@@ -582,3 +582,14 @@ def remove_courier_by_chat_id(chat_id):
     conn = get_db_connection()
     conn.execute('DELETE FROM couriers WHERE chat_id = ?', (chat_id,))
     conn.commit()
+
+def get_last_order_data(chat_id):
+    """Отримує дані останнього замовлення користувача для автозаповнення."""
+    conn = get_db_connection()
+    res = conn.execute('''
+        SELECT delivery_name, delivery_phone, delivery_address 
+        FROM orders 
+        WHERE user_id = ? 
+        ORDER BY created_at DESC LIMIT 1
+    ''', (chat_id,)).fetchone()
+    return res if res else None

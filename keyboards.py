@@ -15,15 +15,13 @@ category_emojis = {
 }
 
 def get_client_keyboard():
-    """Чиста клавіатура клієнта: тільки WebApp та управління замовленнями."""
+    """Мінімалістична клавіатура клієнта: тільки сайт та підтримка."""
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
     from telebot.types import WebAppInfo
-    # Використовуємо твій актуальний URL
     web_app = WebAppInfo(url="https://HollyLight28.github.io/smakota-telegram-app/") 
     
     keyboard.row(KeyboardButton('🍕 ВІДКРИТИ МЕНЮ (Сайт)', web_app=web_app))
-    keyboard.row('🛒 Мій Кошик (Список)', '📋 Статус замовлення')
-    keyboard.row('📞 Контакти', '❓ Допомога')
+    keyboard.row('📞 Написати нам / Допомога')
     return keyboard
 
 def get_courier_keyboard():

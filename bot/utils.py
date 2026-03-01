@@ -42,37 +42,34 @@ def get_maps_url(address: str) -> str:
 
 def format_cart_message(user_id: int):
     """
-    Форматує повідомлення кошика з inline-кнопками.
-    Повертає: (text, total_price, markup)
+    Чисте підтвердження кошика для чату.
+    БЕЗ кнопок +/- (вони в WebApp). 
+    Зі списком 1. 2. 3.
     """
     cart_items = db.get_cart_items(user_id)
     if not cart_items:
-        return "🛒 **Ваш кошик порожній**\n\nОберіть щось смачненьке з меню!", 0, keyboards.get_empty_cart_keyboard()
+        return "🛒 **Ваш кошик порожній**\n\nОберіть щось на сайті!", 0, keyboards.get_empty_cart_keyboard()
 
     total = 0
-    markup = InlineKeyboardMarkup()
-
     message = "🛒 **Ваше замовлення:**\n\n"
 
     for i, item in enumerate(cart_items, 1):
         item_total = item['price'] * item['quantity']
         total += item_total
-        message += f"{i}. **{item['name']}**\n   {item['quantity']} шт. x {item['price']} = {item_total} грн\n"
+        # Додаємо номер перед кожною стравою
+        message += f"{i}. **{item['name']}**\n   `{item['quantity']} шт.` × {item['price']} = **{item_total} грн**\n"
 
-        # Ultra-compact row: [Number + Qty] [Minus] [Plus]
-        markup.add(
-            InlineKeyboardButton(f"{i}. ({item['quantity']} шт)", callback_data="noop"),
-            InlineKeyboardButton("➖", callback_data=f"cart_minus_{item['id']}"),
-            InlineKeyboardButton("➕", callback_data=f"cart_plus_{item['id']}")
-        )
+    message += f"\n💰 **РАЗОМ: {total} грн**"
 
-    message += f"\n💰 **Загалом: {total} грн**"
-
-    # Кнопки дій — порядок як в оригіналі
-    markup.add(
-        InlineKeyboardButton("✅ Оформити", callback_data="checkout"),
-        InlineKeyboardButton("🗑️ Очистити", callback_data="clear_cart")
-    )
-    markup.add(InlineKeyboardButton("🍕 До меню", callback_data="show_menu"))
+    # Використовуємо спеціальну клавіатуру для фінального кроку
+    from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("✅ ОФОРМИТИ ЗАМОВЛЕННЯ", callback_data="checkout"))
+    
+    # Кнопка повернення на сайт (замість старого меню чату)
+    web_app = WebAppInfo(url="https://HollyLight28.github.io/smakota-telegram-app/")
+    markup.add(InlineKeyboardButton("🔙 ПОВЕРНУТИСЬ НА САЙТ", web_app=web_app))
+    
+    markup.add(InlineKeyboardButton("🗑️ Очистити кошик", callback_data="clear_cart"))
 
     return message, total, markup
