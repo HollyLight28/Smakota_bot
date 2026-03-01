@@ -39,9 +39,10 @@ def show_courier_orders(message):
         return
 
     conn = db.get_db_connection()
+    # Показуємо замовлення, які прийняті, призначені або в дорозі
     orders = conn.execute('''
         SELECT * FROM orders
-        WHERE courier_id = ? AND status = "delivery"
+        WHERE courier_id = ? AND status IN ('accepted', 'assigned', 'delivery')
         ORDER BY CASE WHEN route_order IS NULL THEN 999 ELSE route_order END ASC, created_at DESC
     ''', (user_id,)).fetchall()
 

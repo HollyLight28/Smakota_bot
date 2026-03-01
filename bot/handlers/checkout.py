@@ -250,12 +250,15 @@ def process_checkout_step(message):
                 f"👤 {data['name']}\n"
                 f"📍 {data['address']}\n"
                 f"💰 **{total_price} грн**\n\n"
-                "⏳ Оператор вже обробляє вашу заявку."
+                "👌 Ми вже готуємо! Чекайте на повідомлення від кур'єра, коли він буде під'їжджати."
             )
 
-            couriers = db.get_couriers()
-            is_courier = any(c['chat_id'] == user_id for c in couriers)
-            bot.send_message(message.chat.id, success_msg, reply_markup=keyboards.get_main_keyboard(is_courier), parse_mode='Markdown')
+            # Поважаємо роль, яку вибрав користувач!
+            saved_role = db.get_user_current_role(user_id)
+            from bot.handlers.start import _get_role_keyboard
+            markup = _get_role_keyboard(user_id)
+            
+            bot.send_message(message.chat.id, success_msg, reply_markup=markup, parse_mode='Markdown')
 
             if ADMIN_ID:
                 cart_details = "\n".join([f"• {i['name']} x{i['quantity']}" for i in cart_items])

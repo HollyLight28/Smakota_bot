@@ -104,9 +104,16 @@ def setup_database():
                 chat_id INTEGER PRIMARY KEY,
                 username TEXT,
                 first_name TEXT,
-                last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                current_role TEXT
             )
         ''')
+        
+        # Перевірка чи є колонка current_role (якщо таблиця була створена раніше)
+        cursor.execute("PRAGMA table_info(users)")
+        columns = [info[1] for info in cursor.fetchall()]
+        if 'current_role' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN current_role TEXT")
 
         # Mailing templates table
         cursor.execute('''
