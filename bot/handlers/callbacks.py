@@ -22,6 +22,35 @@ def handle_callback(call):
     data = call.data
 
     try:
+        # === Role Switching Callbacks ===
+        if data.startswith("set_role_"):
+            if user_id != ADMIN_ID: return
+            
+            role = data.replace("set_role_", "")
+            
+            # Для ШЕФА (ADMIN_ID) ми НЕ видаляємо дані з бази, 
+            # щоб не втрачати замовлення та статус зміни.
+            # Ми просто змінюємо КНОПКИ (інтерфейс).
+            
+            if role == "admin":
+                bot.edit_message_text("👑 Інтерфейс змінено на **Адмін (Шеф)**.", call.message.chat.id, call.message.message_id, reply_markup=None, parse_mode='Markdown')
+                bot.send_message(user_id, "Твоя майстер-панель:", reply_markup=keyboards.get_admin_keyboard())
+            elif role == "courier":
+                # Перевіряємо чи вже є в базі, якщо немає - додаємо
+                if not any(c['chat_id'] == user_id for c in db.get_couriers()):
+                    db.add_courier(f"Шеф_{call.from_user.first_name}", user_id)
+                bot.edit_message_text("🛵 Інтерфейс змінено на **Кур'єр**.", call.message.chat.id, call.message.message_id, reply_markup=None, parse_mode='Markdown')
+                bot.send_message(user_id, "Панель кур'єра (твої замовлення на місці):", reply_markup=keyboards.get_courier_keyboard())
+            elif role == "hall":
+                if not any(h['chat_id'] == user_id for h in db.get_hall_staff()):
+                    db.add_hall_staff(f"Шеф_{call.from_user.first_name}", user_id)
+                bot.edit_message_text("💃 Інтерфейс змінено на **Зал (Наташа)**.", call.message.chat.id, call.message.message_id, reply_markup=None, parse_mode='Markdown')
+                bot.send_message(user_id, "Панель залу:", reply_markup=keyboards.get_hall_staff_keyboard())
+            elif role == "client":
+                bot.edit_message_text("👤 Інтерфейс змінено на **Клієнт**.", call.message.chat.id, call.message.message_id, reply_markup=None, parse_mode='Markdown')
+                bot.send_message(user_id, "Бачиш бота як звичайний покупець.", reply_markup=keyboards.get_client_keyboard())
+            return
+
         # === Admin Batch & Mailing ===
         if data.startswith(("adm_sel_", "adm_create_route", "adm_assign_", "mail_")):
             if user_id != ADMIN_ID:
@@ -238,25 +267,46 @@ def handle_callback(call):
         elif data == "mon_back":
             if user_id != ADMIN_ID:
                 return
-            # Import here to avoid circular import at module level
-            from bot.handlers.admin import admin_show_monitoring
-            admin_show_monitoring(call.message)
+
+            # Re-generate monitoring list instead of calling admin_show_monitoring
+            couriers = db.get_couriers()
+            today = datetime.now().strftime('%Y-%m-%d')
+            conn = db.get_db_connection()
+
+            msg = "📊 **Моніторинг кур'єрів (сьогодні):**\n\n"
+            markup = InlineKeyboardMarkup()
+            for c in couriers:
+                active = conn.execute('SELECT COUNT(*) as count FROM orders WHERE courier_id = ? AND status = "delivery"', (c['chat_id'],)).fetchone()['count']
+                completed = conn.execute('SELECT COUNT(*) as count FROM orders WHERE courier_id = ? AND status = "completed" AND date(created_at) = ?', (c['chat_id'], today)).fetchone()['count']
+                status_emoji = "✅" if c['shift_status'] == 'on' else "🔌"
+                safe_name = re.sub(r'[_*`\[\]]', r'\\\g<0>', str(c['name']))
+                msg += f"{status_emoji} **{safe_name}** | В дорозі: `{active}` | Завершено: `{completed}`\n"
+                markup.add(InlineKeyboardButton(f"🔎 Деталі по {safe_name}", callback_data=f"mon_courier_{c['chat_id']}"))
+
+            bot.edit_message_text(msg, call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode='Markdown')
             return
 
         # === Category Navigation ===
         if data.startswith("category_"):
+            # Перевіряємо, чи це стафф (Адмін або Наташа)
+            state_info = db.get_user_state(user_id)
+            is_staff = (user_id == ADMIN_ID) or (state_info and state_info['state'] in ['dispatcher_picking_items', 'hall_picking_items', 'admin_batch_building'])
+            
+            if not is_staff:
+                bot.answer_callback_query(call.id, "🛒 Будь ласка, використовуйте сайт для замовлення!", show_alert=True)
+                return
+
             category_id = data.split("_")[1]
             category_name = db.get_category_name_by_id(category_id)
             try:
                 bot.edit_message_text(
                     chat_id=call.message.chat.id, message_id=call.message.message_id,
-                    text=f"🍽️ **Страви категорії: {category_name}**",
+                    text=f"🍽️ **Категорія: {category_name}**\n\n_Натисніть на страву, щоб додати її в кошик._",
                     reply_markup=keyboards.get_items_keyboard(category_id),
                     parse_mode='Markdown'
                 )
-            except telebot.apihelper.ApiTelegramException as e:
-                if "message is not modified" not in e.description.lower():
-                    bot.answer_callback_query(call.id)
+            except Exception:
+                bot.answer_callback_query(call.id)
 
         elif data == "back_to_categories" or data == "show_menu":
             try:
@@ -266,36 +316,27 @@ def handle_callback(call):
                     reply_markup=keyboards.get_categories_keyboard(),
                     parse_mode='Markdown'
                 )
-            except telebot.apihelper.ApiTelegramException as e:
-                if "message is not modified" not in e.description.lower():
-                    bot.answer_callback_query(call.id)
+            except Exception:
+                bot.answer_callback_query(call.id)
 
         # === Item Actions ===
         elif data.startswith("item_"):
             item_id = int(data.split("_")[1])
             item = db.get_item_by_id(item_id)
-            if item and item['is_active']:
-                text = f"🍱 **{item['name']}**\n\n"
-                if item['description']:
-                    text += f"📝 {item['description']}\n"
-                if item['weight']:
-                    text += f"⚖️ Вага: {item['weight']}\n"
-                text += f"\n💰 **Ціна: {item['price']} грн**"
+            if not item: return
 
-                markup = InlineKeyboardMarkup()
-                markup.add(InlineKeyboardButton(f"➕ Додати у кошик", callback_data=f"add_to_cart_{item_id}"))
-                markup.add(InlineKeyboardButton("🔙 Назад до меню", callback_data=f"category_{item['category_id']}"))
+            # ШВИДКЕ ДОДАВАННЯ ДЛЯ ПЕРСОНАЛУ (БЕЗ ФОТО)
+            state_info = db.get_user_state(user_id)
+            is_staff = (user_id == ADMIN_ID) or (state_info and state_info['state'] in ['dispatcher_picking_items', 'hall_picking_items'])
+            
+            if is_staff:
+                db.add_to_cart(user_id, item_id)
+                bot.answer_callback_query(call.id, f"✅ Додано: {item['name']}")
+                # Ми не видаляємо список страв, щоб можна було клацати далі
+                return
 
-                if item['image_url']:
-                    try:
-                        bot.send_photo(call.message.chat.id, item['image_url'], caption=text, parse_mode='Markdown', reply_markup=markup)
-                        bot.delete_message(call.message.chat.id, call.message.message_id)
-                    except Exception:
-                        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=text, reply_markup=markup, parse_mode='Markdown')
-                else:
-                    bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=text, reply_markup=markup, parse_mode='Markdown')
-            else:
-                bot.answer_callback_query(call.id, "❌ Ця страва зараз недоступна.", show_alert=True)
+            # Якщо раптом клієнт сюди потрапив - шлемо на сайт
+            bot.answer_callback_query(call.id, "🛒 Використовуйте 'ВІДКРИТИ МЕНЮ' для замовлення!", show_alert=True)
 
         elif data.startswith("add_to_cart_"):
             parts = data.split("_")

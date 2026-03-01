@@ -20,15 +20,24 @@ def handle_webapp_data(message):
 
         if data.get('action') == 'webapp_order':
             items = data.get('items', {})
-            for item_id_str, item_data in items.items():
+            if not items:
+                bot.send_message(message.chat.id, "🛒 Ваш кошик порожній.")
+                return
+
+            # Очищуємо кошик перед додаванням (як в оригіналі)
+            db.clear_cart(user_id)
+            
+            order_summary = "🛒 **Ви обрали в меню:**\n\n"
+            for item_id_str, item_info in items.items():
                 item_id = int(item_id_str)
-                quantity = item_data.get('count', 1)
-                db.add_to_cart(user_id, item_id, quantity)
+                count = item_info.get('count', 1)
+                db.add_to_cart(user_id, item_id, count)
+                order_summary += f"• {item_info['name']} x{count} — {item_info['price'] * count} грн\n"
 
             cart_text, total, cart_markup = format_cart_message(user_id)
             bot.send_message(
                 message.chat.id,
-                f"✅ **Страви додано з меню!**\n\n{cart_text}",
+                f"✅ **Товари додано до кошика!**\n\n{order_summary}\n💰 **Разом: {total} грн**",
                 reply_markup=cart_markup,
                 parse_mode='Markdown'
             )

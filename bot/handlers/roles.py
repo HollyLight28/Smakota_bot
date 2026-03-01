@@ -9,50 +9,28 @@ import database as db
 import keyboards
 
 
-@bot.message_handler(commands=['set_role_admin'])
-def set_role_admin(message):
-    """Перемикає на роль адміна."""
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+
+@bot.message_handler(commands=['roles'])
+def show_roles_menu(message):
+    """Показує меню вибору ролей для Адміна."""
     if message.from_user.id != ADMIN_ID:
-        bot.reply_to(message, "⛔ Доступ заборонено")
         return
+    
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("👑 Адмін (Шеф)", callback_data="set_role_admin"))
+    markup.add(InlineKeyboardButton("🛵 Кур'єр", callback_data="set_role_courier"))
+    markup.add(InlineKeyboardButton("💃 Зал (Наташа)", callback_data="set_role_hall"))
+    markup.add(InlineKeyboardButton("👤 Клієнт", callback_data="set_role_client"))
+    
     bot.reply_to(
-        message,
-        "👑 Тепер ти **Адмін**. Повний контроль активовано.",
-        reply_markup=keyboards.get_admin_keyboard(),
+        message, 
+        "🎭 **Вибір ролі для тестування:**\nОберіть, який інтерфейс ви хочете бачити зараз.",
+        reply_markup=markup,
         parse_mode='Markdown'
     )
 
 
-@bot.message_handler(commands=['set_role_courier'])
-def set_role_courier(message):
-    """Перемикає на роль кур'єра."""
-    user_id = message.from_user.id
-    # Спочатку видаляємо, щоб не було дублікатів
-    db.remove_courier_by_chat_id(user_id)
-    db.add_courier(f"Test_{message.from_user.first_name}", user_id)
-    bot.reply_to(
-        message,
-        "🛵 Тепер ти **Кур'єр**.\nТвій інтерфейс оновлено.",
-        reply_markup=keyboards.get_courier_keyboard(),
-        parse_mode='Markdown'
-    )
-
-
-@bot.message_handler(commands=['set_role_client'])
-def set_role_client(message):
-    """Перемикає на роль клієнта."""
-    user_id = message.from_user.id
-    db.remove_courier_by_chat_id(user_id)
-    bot.reply_to(
-        message,
-        "👤 Тепер ти **Клієнт**.\nТвій інтерфейс оновлено.",
-        reply_markup=keyboards.get_client_keyboard(),
-        parse_mode='Markdown'
-    )
-
-
-@bot.message_handler(commands=['remove_me'])
-def remove_me_from_roles(message):
-    """Видаляє з усіх ролей."""
-    db.remove_user_from_roles(message.from_user.id)
-    bot.reply_to(message, "🔌 Вас видалено з усіх ролей. Натисніть /start, щоб стати звичайним клієнтом.")
+# Ми прибираємо текстові команди /set_role_... і переносимо логіку в callbacks
+# Базова логіка тепер працює через Inline кнопки

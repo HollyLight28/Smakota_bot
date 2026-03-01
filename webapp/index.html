@@ -15,61 +15,83 @@
             --tg-theme-text-color: #222222;
             --tg-theme-hint-color: #999999;
             --tg-theme-secondary-bg-color: #f5f5f5;
-
             --primary: #f65e07;
             --primary-gradient: linear-gradient(135deg, #f65e07 0%, #ff8a00 100%);
-            --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-            --card-radius: 16px;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            --card-radius: 20px;
             --ease: cubic-bezier(0.23, 1, 0.32, 1);
         }
 
         * {
             box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
         }
 
         body {
-            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: 'Outfit', sans-serif;
             background-color: var(--tg-theme-secondary-bg-color);
             color: var(--tg-theme-text-color);
             margin: 0;
             padding: 0;
-            user-select: none;
             overflow-x: hidden;
-            -webkit-tap-highlight-color: transparent;
         }
 
-        /* Header */
+        /* UI Overlays */
+        #cart-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s var(--ease);
+        }
+
+        #cart-modal {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: var(--tg-theme-bg-color);
+            border-radius: 24px 24px 0 0;
+            z-index: 1001;
+            padding: 20px;
+            transform: translateY(100%);
+            transition: transform 0.4s var(--ease);
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+
         .header {
-            background-color: var(--tg-theme-bg-color);
+            background: var(--tg-theme-bg-color);
             padding: 16px;
             position: sticky;
             top: 0;
             z-index: 100;
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
             display: flex;
             align-items: center;
             justify-content: space-between;
+            box-shadow: 0 1px 5px rgba(0, 0, 0, 0.05);
         }
 
         .header h1 {
             margin: 0;
-            font-size: 1.4rem;
-            font-weight: 700;
+            font-size: 1.5rem;
             background: var(--primary-gradient);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
-        /* Categories */
         .categories {
             display: flex;
             overflow-x: auto;
-            padding: 10px 12px;
-            background-color: var(--tg-theme-bg-color);
-            gap: 6px;
+            padding: 12px;
+            gap: 8px;
             scrollbar-width: none;
+            background: var(--tg-theme-bg-color);
         }
 
         .categories::-webkit-scrollbar {
@@ -77,133 +99,90 @@
         }
 
         .category-chip {
-            white-space: nowrap;
-            padding: 8px 16px;
-            background-color: var(--tg-theme-secondary-bg-color);
+            padding: 8px 18px;
+            background: var(--tg-theme-secondary-bg-color);
             border-radius: 100px;
-            font-size: 0.85rem;
             font-weight: 600;
+            font-size: 0.9rem;
             cursor: pointer;
-            transition: all 0.3s var(--ease);
+            white-space: nowrap;
+            transition: 0.3s;
             color: var(--tg-theme-hint-color);
         }
 
         .category-chip.active {
             background: var(--primary-gradient);
             color: white;
-            box-shadow: 0 3px 10px rgba(246, 94, 7, 0.3);
+            box-shadow: 0 4px 10px rgba(246, 94, 7, 0.3);
         }
 
-        /* Menu Grid */
         .menu-grid {
             padding: 12px;
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            padding-bottom: 100px;
+            gap: 12px;
+            padding-bottom: 110px;
         }
 
-        /* Compact Card */
         .card {
-            background-color: var(--tg-theme-bg-color);
+            background: var(--tg-theme-bg-color);
             border-radius: var(--card-radius);
             overflow: hidden;
             box-shadow: var(--shadow);
+            position: relative;
             display: flex;
             flex-direction: column;
-            position: relative;
-            animation: fadeInUp 0.4s var(--ease) both;
+            transition: 0.2s;
         }
 
         .card:active {
             transform: scale(0.97);
         }
 
-        /* Image - показуємо ВСЮ картинку без обрізки */
         .card img {
             width: 100%;
-            aspect-ratio: 4 / 3;
-            object-fit: contain;
-            background: linear-gradient(135deg, #fef3e8 0%, #fff8f0 100%);
-            display: block;
-        }
-
-        .badge {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            background: rgba(0, 0, 0, 0.55);
-            backdrop-filter: blur(4px);
-            color: white;
-            padding: 3px 8px;
-            border-radius: 100px;
-            font-size: 0.65rem;
-            font-weight: 600;
+            aspect-ratio: 1/1;
+            object-fit: cover;
         }
 
         .card-body {
-            padding: 10px 12px 6px;
+            padding: 12px;
+            flex-grow: 1;
         }
 
         .card-title {
             font-weight: 700;
-            font-size: 0.9rem;
+            font-size: 0.95rem;
             margin: 0;
             line-height: 1.2;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
         }
 
-        .card-desc {
-            font-size: 0.75rem;
-            color: var(--tg-theme-hint-color);
-            margin: 4px 0 0;
-            line-height: 1.3;
-            display: -webkit-box;
-            -webkit-line-clamp: 1;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-
-        .card-footer {
-            padding: 6px 12px 12px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .price {
-            font-weight: 700;
-            font-size: 1rem;
+        .card-price {
             color: var(--primary);
+            font-weight: 700;
+            font-size: 1.1rem;
+            margin-top: 8px;
         }
 
         .add-btn {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
             background: var(--primary-gradient);
             color: white;
             border: none;
             width: 36px;
             height: 36px;
             border-radius: 50%;
-            font-size: 1.3rem;
-            font-weight: 700;
+            font-size: 1.4rem;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 3px 8px rgba(246, 94, 7, 0.2);
-            transition: transform 0.15s;
-            line-height: 1;
-        }
-
-        .add-btn:active {
-            transform: scale(0.85);
         }
 
         /* Cart Floating Bar */
-        .cart-status {
+        .cart-bar {
             position: fixed;
             bottom: 20px;
             left: 16px;
@@ -211,108 +190,117 @@
             background: #1a1a1a;
             color: white;
             padding: 16px 20px;
-            border-radius: 18px;
+            border-radius: 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             font-weight: 700;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
             transform: translateY(150px);
-            transition: transform 0.5s var(--ease);
-            z-index: 1000;
-            cursor: pointer;
+            transition: 0.4s var(--ease);
+            z-index: 500;
         }
 
-        .cart-status.visible {
+        .cart-bar.visible {
             transform: translateY(0);
         }
 
-        .cart-btn-label {
+        /* Cart List inside modal */
+        .cart-item {
             display: flex;
             align-items: center;
-            gap: 8px;
-            font-size: 0.9rem;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--tg-theme-secondary-bg-color);
         }
 
-        .cart-count-badge {
-            background: var(--primary);
+        .cart-item-info {
+            flex-grow: 1;
+            margin-left: 10px;
+        }
+
+        .cart-item-title {
+            font-weight: 600;
+            margin: 0;
+            font-size: 0.95rem;
+        }
+
+        .cart-item-price {
+            color: var(--primary);
+            font-size: 0.85rem;
+            font-weight: 700;
+        }
+
+        .qty-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--tg-theme-secondary-bg-color);
+            padding: 5px 12px;
+            border-radius: 100px;
+        }
+
+        .qty-btn {
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            font-weight: 700;
+            cursor: pointer;
+            color: var(--primary);
+            width: 24px;
+        }
+
+        .item-num {
+            color: var(--tg-theme-hint-color);
+            font-size: 0.8rem;
+            font-weight: 700;
+            width: 20px;
+        }
+
+        .checkout-btn {
+            width: 100%;
+            background: var(--primary-gradient);
             color: white;
-            width: 22px;
-            height: 22px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-            font-size: 0.75rem;
-        }
-
-        /* Animations */
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(15px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        /* Responsive: 3 columns for tablets/desktop */
-        @media (min-width: 600px) {
-            .menu-grid {
-                grid-template-columns: 1fr 1fr 1fr;
-                gap: 14px;
-                padding: 16px;
-            }
-
-            .card-title {
-                font-size: 1rem;
-            }
-        }
-
-        /* 4 columns for large screens */
-        @media (min-width: 900px) {
-            .menu-grid {
-                grid-template-columns: 1fr 1fr 1fr 1fr;
-            }
+            border: none;
+            padding: 16px;
+            border-radius: 16px;
+            font-weight: 700;
+            font-size: 1.1rem;
+            margin-top: 20px;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(246, 94, 7, 0.3);
         }
     </style>
 </head>
 
 <body>
-
     <div class="header">
         <h1>🍕 СМАКОТА</h1>
     </div>
-
     <div class="categories" id="cat-list"></div>
-
     <div class="menu-grid" id="menu-items"></div>
 
-    <div class="cart-status" id="cart-bar" onclick="sendOrder()">
-        <div class="cart-btn-label">
-            <span class="cart-count-badge" id="cart-count">0</span>
-            <span>КОШИК</span>
+    <div class="cart-bar" id="cart-bar" onclick="toggleCart(true)">
+        <span>🛒 <span id="cart-count">0</span> страв</span>
+        <span id="cart-total">0 ₴</span>
+    </div>
+
+    <!-- Cart Modal -->
+    <div id="cart-overlay" onclick="toggleCart(false)"></div>
+    <div id="cart-modal">
+        <h2 style="margin-top:0">Мій кошик</h2>
+        <div id="cart-items-list"></div>
+        <div style="display:flex; justify-content:space-between; margin-top:20px; font-size:1.2rem; font-weight:800">
+            <span>Разом:</span>
+            <span id="modal-total" style="color:var(--primary)">0 ₴</span>
         </div>
-        <span id="cart-total">0 грн</span>
+        <button class="checkout-btn" onclick="checkout()">ОФОРМИТИ ЗАМОВЛЕННЯ</button>
     </div>
 
     <script src="data.js"></script>
     <script>
         let tg = window.Telegram.WebApp;
         tg.expand();
-        try { tg.enableClosingConfirmation(); } catch (e) { }
-
-        // Telegram theme colors
-        if (tg.themeParams) {
-            if (tg.themeParams.bg_color) document.documentElement.style.setProperty('--tg-theme-bg-color', tg.themeParams.bg_color);
-            if (tg.themeParams.text_color) document.documentElement.style.setProperty('--tg-theme-text-color', tg.themeParams.text_color);
-            if (tg.themeParams.hint_color) document.documentElement.style.setProperty('--tg-theme-hint-color', tg.themeParams.hint_color);
-            if (tg.themeParams.secondary_bg_color) document.documentElement.style.setProperty('--tg-theme-secondary-bg-color', tg.themeParams.secondary_bg_color);
-        }
-
         let cart = {};
         let currentCategory = 'all';
 
@@ -320,58 +308,50 @@
             const list = document.getElementById('cat-list');
             const cats = [{ id: 'all', name: 'Усе' }, ...menuData.categories];
             list.innerHTML = cats.map(c => `
-            <div class="category-chip ${currentCategory === c.id ? 'active' : ''}" 
-                 onclick="setCategory('${c.id}')">${c.name}</div>
-        `).join('');
+                <div class="category-chip ${currentCategory === c.id ? 'active' : ''}" onclick="setCategory('${c.id}')">${c.name}</div>
+            `).join('');
         }
 
         function setCategory(id) {
             currentCategory = id;
             renderCategories();
             renderMenu();
-            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         function renderMenu() {
             const grid = document.getElementById('menu-items');
-            const items = currentCategory === 'all'
-                ? menuData.items
-                : menuData.items.filter(i => i.category_id === currentCategory);
-
-            grid.innerHTML = items.map((item, index) => `
-            <div class="card" style="animation-delay: ${Math.min(index * 0.03, 0.5)}s">
-                <div style="position:relative">
-                    <img src="${item.image_url}" alt="${item.name}" 
-                         loading="lazy"
-                         onerror="this.src='https://placehold.co/400x300/f65e07/ffffff?text=${encodeURIComponent(item.name.substring(0, 15))}'">
-                    ${item.weight ? `<div class="badge">${item.weight}</div>` : ''}
+            const items = currentCategory === 'all' ? menuData.items : menuData.items.filter(i => i.category_id === currentCategory);
+            grid.innerHTML = items.map(item => `
+                <div class="card">
+                    <img src="${item.image_url}" onerror="this.src='https://placehold.co/400x400/f65e07/ffffff?text=${encodeURIComponent(item.name.substring(0, 10))}'">
+                    <div class="card-body">
+                        <p class="card-title">${item.name}</p>
+                        <p class="card-price">${item.price} ₴</p>
+                    </div>
+                    <button class="add-btn" onclick="addToCart(${item.id},'${item.name.replace(/'/g, "\\'")}',${item.price})">+</button>
                 </div>
-                <div class="card-body">
-                    <p class="card-title">${item.name}</p>
-                    ${item.description ? `<p class="card-desc">${item.description}</p>` : ''}
-                </div>
-                <div class="card-footer">
-                    <span class="price">${item.price} ₴</span>
-                    <button class="add-btn" onclick="addToCart(${item.id}, '${item.name.replace(/'/g, "\\'")}', ${item.price})">+</button>
-                </div>
-            </div>
-        `).join('');
+            `).join('');
         }
 
         function addToCart(id, name, price) {
-            if (!cart[id]) cart[id] = { count: 0, name: name, price: price };
+            if (!cart[id]) cart[id] = { count: 0, name: name, price: price, id: id };
             cart[id].count++;
-            updateCart();
-            try { tg.HapticFeedback.impactOccurred('medium'); } catch (e) { }
+            updateUI();
+            tg.HapticFeedback.impactOccurred('medium');
         }
 
-        function updateCart() {
-            let count = 0, total = 0;
-            for (let id in cart) {
-                count += cart[id].count;
-                total += cart[id].count * cart[id].price;
-            }
+        function editQty(id, delta) {
+            if (!cart[id]) return;
+            cart[id].count += delta;
+            if (cart[id].count <= 0) delete cart[id];
+            updateUI();
+            renderCartList();
+            tg.HapticFeedback.impactOccurred('light');
+        }
 
+        function updateUI() {
+            let count = 0, total = 0;
+            for (let id in cart) { count += cart[id].count; total += cart[id].count * cart[id].price; }
             const bar = document.getElementById('cart-bar');
             if (count > 0) {
                 bar.classList.add('visible');
@@ -379,18 +359,57 @@
                 document.getElementById('cart-total').innerText = `${total} ₴`;
             } else {
                 bar.classList.remove('visible');
+                toggleCart(false);
             }
         }
 
-        function sendOrder() {
-            if (Object.keys(cart).length === 0) return;
-            try { tg.HapticFeedback.notificationOccurred('success'); } catch (e) { }
+        function toggleCart(show) {
+            const overlay = document.getElementById('cart-overlay');
+            const modal = document.getElementById('cart-modal');
+            if (show) {
+                renderCartList();
+                overlay.style.display = 'block';
+                setTimeout(() => { overlay.style.opacity = '1'; modal.style.transform = 'translateY(0)'; }, 10);
+            } else {
+                overlay.style.opacity = '0';
+                modal.style.transform = 'translateY(100%)';
+                setTimeout(() => { overlay.style.display = 'none'; }, 300);
+            }
+        }
+
+        function renderCartList() {
+            const list = document.getElementById('cart-items-list');
+            let total = 0, i = 1;
+            let html = '';
+            for (let id in cart) {
+                const item = cart[id];
+                total += item.count * item.price;
+                html += `
+                    <div class="cart-item">
+                        <span class="item-num">${i++}.</span>
+                        <div class="cart-item-info">
+                            <p class="cart-item-title">${item.name}</p>
+                            <span class="cart-item-price">${item.price} ₴</span>
+                        </div>
+                        <div class="qty-controls">
+                            <button class="qty-btn" onclick="editQty(${id}, -1)">−</button>
+                            <span style="font-weight:700">${item.count}</span>
+                            <button class="qty-btn" onclick="editQty(${id}, 1)">+</button>
+                        </div>
+                    </div>
+                `;
+            }
+            list.innerHTML = html || '<p style="text-align:center; color:gray">Кошик порожній</p>';
+            document.getElementById('modal-total').innerText = `${total} ₴`;
+        }
+
+        function checkout() {
+            tg.HapticFeedback.notificationOccurred('success');
             tg.sendData(JSON.stringify({ action: 'webapp_order', items: cart }));
             tg.close();
         }
 
-        renderCategories();
-        renderMenu();
+        renderCategories(); renderMenu();
     </script>
 </body>
 

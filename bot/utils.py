@@ -66,8 +66,13 @@ def format_cart_message(user_id: int):
             InlineKeyboardButton("➕", callback_data=f"cart_plus_{item['id']}")
         )
 
-    message += f"\n{'═' * 25}\n💰 **Всього: {total} грн**"
-    markup.add(InlineKeyboardButton("🗑️ Очистити кошик", callback_data="clear_cart"))
-    markup.add(InlineKeyboardButton("✅ Оформити замовлення", callback_data="checkout"))
+    message += f"\n💰 **Загалом: {total} грн**"
+
+    # Кнопки дій — порядок як в оригіналі
+    markup.add(
+        InlineKeyboardButton("✅ Оформити", callback_data="checkout"),
+        InlineKeyboardButton("🗑️ Очистити", callback_data="clear_cart")
+    )
+    markup.add(InlineKeyboardButton("🍕 До меню", callback_data="show_menu"))
 
     return message, total, markup

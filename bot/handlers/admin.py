@@ -94,17 +94,48 @@ def admin_show_new_orders(message):
 
 @bot.message_handler(func=lambda message: message.text == '📊 Виручка за сьогодні')
 def admin_show_revenue(message):
-    """Показує загальну виручку за сьогодні."""
-    if message.from_user.id != ADMIN_ID:
-        return
-    conn = db.get_db_connection()
+    """Детальний звіт по виручці за сьогодні."""
+    if message.from_user.id != ADMIN_ID: return
+    
     today = datetime.now().strftime('%Y-%m-%d')
-    res = conn.execute(
-        'SELECT SUM(total_amount) as total FROM orders WHERE status = "completed" AND date(created_at) = ?',
-        (today,)
-    ).fetchone()
-    total = res['total'] if res['total'] else 0
-    bot.reply_to(message, f"💰 Загальна виручка за сьогодні: **{total} грн**", parse_mode='Markdown')
+    conn = db.get_db_connection()
+    
+    # Загальна сума
+    total = conn.execute('SELECT SUM(total_amount) FROM orders WHERE status = "completed" AND date(created_at) = ?', (today,)).fetchone()[0] or 0
+    # По методах оплати
+    cash = conn.execute('SELECT SUM(total_amount) FROM orders WHERE status = "completed" AND payment_method = "Готівка" AND date(created_at) = ?', (today,)).fetchone()[0] or 0
+    terminal = conn.execute('SELECT SUM(total_amount) FROM orders WHERE status = "completed" AND payment_method = "Термінал" AND date(created_at) = ?', (today,)).fetchone()[0] or 0
+    
+    # По відділах
+    courier_total = conn.execute('SELECT SUM(total_amount) FROM orders WHERE status = "completed" AND courier_id IS NOT NULL AND date(created_at) = ?', (today,)).fetchone()[0] or 0
+    hall_total = conn.execute('SELECT SUM(total_amount) FROM orders WHERE status = "completed" AND hall_staff_id IS NOT NULL AND date(created_at) = ?', (today,)).fetchone()[0] or 0
+
+    msg = (
+        f"📊 **Звіт по виручці ({today}):**\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"💰 **Всього: {total} грн**\n\n"
+        f"💵 Готівка: `{cash} грн`\n"
+        f"💳 Термінал: `{terminal} грн`\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"🛵 Доставки: `{courier_total} грн`\n"
+        f"💃 Зал (Наташа): `{hall_total} грн`"
+    )
+    bot.reply_to(message, msg, parse_mode='Markdown')
+
+
+@bot.message_handler(func=lambda message: message.text == '📖 Інструкція')
+def admin_instruction(message):
+    """Шпаргалка для Шефа."""
+    if message.from_user.id != ADMIN_ID: return
+    
+    instruct = (
+        "📖 **Як користуватися ботом (Шеф):**\n\n"
+        "1. **Нові замовлення** — тут падають замовлення з бота. Тисни на замовлення і вибирай кур'єра.\n"
+        "2. **Ручне замовлення** — якщо подзвонили по телефону. Обирай страви, введи номер — і воно піде в базу.\n"
+        "3. **Моніторинг** — дивись, де зараз кур'єри і скільки вони вже розвезли.\n"
+        "4. **Інші ролі** — пиши `/roles`, щоб перевірити як бачить бота клієнт або кур'єр."
+    )
+    bot.reply_to(message, instruct, parse_mode='Markdown')
 
 
 @bot.message_handler(func=lambda message: message.text == '🛵 Кур\'єри на зміні')

@@ -15,15 +15,15 @@ category_emojis = {
 }
 
 def get_client_keyboard():
-    """Main keyboard for clients with Web App support."""
+    """Чиста клавіатура клієнта: тільки WebApp та управління замовленнями."""
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-    # Створюємо кнопку WebApp (замініть URL на ваш реальний хостинг)
     from telebot.types import WebAppInfo
+    # Використовуємо твій актуальний URL
     web_app = WebAppInfo(url="https://HollyLight28.github.io/smakota-telegram-app/") 
     
-    keyboard.row(KeyboardButton('🍕 ВІДКРИТИ МЕНЮ', web_app=web_app))
-    keyboard.row('🛒 Моє замовлення', '📞 Контакти')
-    keyboard.row('❓ Допомога')
+    keyboard.row(KeyboardButton('🍕 ВІДКРИТИ МЕНЮ (Сайт)', web_app=web_app))
+    keyboard.row('🛒 Мій Кошик (Список)', '📋 Статус замовлення')
+    keyboard.row('📞 Контакти', '❓ Допомога')
     return keyboard
 
 def get_courier_keyboard():
@@ -35,11 +35,12 @@ def get_courier_keyboard():
     return keyboard
 
 def get_admin_keyboard():
-    """Main keyboard for administrators."""
+    """Майстер-клавіатура для Адміна/Шефа."""
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
     keyboard.row('📋 Нові замовлення', '📊 Виручка за сьогодні')
-    keyboard.row('📊 Моніторинг', '📣 Розсилка')
-    keyboard.row('🔄 Оновити меню (GS)')
+    keyboard.row('📞 Нове ручне замовлення', '📋 Всі активні замовлення')
+    keyboard.row('📊 Моніторинг', '🔄 Оновити меню (GS)')
+    keyboard.row('📣 Розсилка', '📖 Інструкція')
     return keyboard
 
 def get_dispatcher_keyboard():
