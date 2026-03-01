@@ -61,10 +61,15 @@ def send_welcome(message):
 
 
 def _get_role_keyboard(user_id: int):
-    """Визначає роль користувача і повертає відповідну клавіатуру."""
+    """
+    Визначає роль користувача. 
+    За запитом Шефа: Адмін (Шеф) по замовчуванню завжди бачить меню Клієнта,
+    щоб бачити бота очима покупця.
+    """
     if user_id == ADMIN_ID:
-        return keyboards.get_admin_keyboard()
+        return keyboards.get_client_keyboard()
 
+    # Для іншого персоналу лишаємо їх меню
     couriers = db.get_couriers()
     if any(c['chat_id'] == user_id for c in couriers):
         return keyboards.get_courier_keyboard()
