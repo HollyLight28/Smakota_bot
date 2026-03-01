@@ -63,23 +63,14 @@ def send_welcome(message):
 def _get_role_keyboard(user_id: int):
     """
     Визначає роль користувача. 
-    За запитом Шефа: Адмін (Шеф) по замовчуванню завжди бачить меню Клієнта,
-    щоб бачити бота очима покупця.
+    Тепер ми спершу дивимось, яку роль користувач вибрав останньою в /roles.
     """
-    if user_id == ADMIN_ID:
-        return keyboards.get_client_keyboard()
+    saved_role = db.get_user_current_role(user_id)
+    
+    if saved_role == "admin": return keyboards.get_admin_keyboard()
+    if saved_role == "courier": return keyboards.get_courier_keyboard()
+    if saved_role == "hall": return keyboards.get_hall_staff_keyboard()
+    if saved_role == "client": return keyboards.get_client_keyboard()
 
-    # Для іншого персоналу лишаємо їх меню
-    couriers = db.get_couriers()
-    if any(c['chat_id'] == user_id for c in couriers):
-        return keyboards.get_courier_keyboard()
-
-    dispatchers = db.get_dispatchers()
-    if any(d['chat_id'] == user_id for d in dispatchers):
-        return keyboards.get_dispatcher_keyboard()
-
-    hall_staff = db.get_hall_staff()
-    if any(h['chat_id'] == user_id for h in hall_staff):
-        return keyboards.get_hall_staff_keyboard()
-
+    # Якщо ролі в базі немає (перший старт) - для Адміна все одно покажемо Клієнта (щоб бачив сайт)
     return keyboards.get_client_keyboard()

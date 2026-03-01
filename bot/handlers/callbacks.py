@@ -28,9 +28,8 @@ def handle_callback(call):
             
             role = data.replace("set_role_", "")
             
-            # Для ШЕФА (ADMIN_ID) ми НЕ видаляємо дані з бази, 
-            # щоб не втрачати замовлення та статус зміни.
-            # Ми просто змінюємо КНОПКИ (інтерфейс).
+            # Зберігаємо роль в базі для залізної пам'яті
+            db.set_user_current_role(user_id, role)
             
             if role == "admin":
                 bot.edit_message_text("👑 Інтерфейс змінено на **Адмін (Шеф)**.", call.message.chat.id, call.message.message_id, reply_markup=None, parse_mode='Markdown')

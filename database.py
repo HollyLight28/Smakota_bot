@@ -593,3 +593,15 @@ def get_last_order_data(chat_id):
         ORDER BY created_at DESC LIMIT 1
     ''', (chat_id,)).fetchone()
     return res if res else None
+
+def set_user_current_role(chat_id, role):
+    """Зберігає поточну вибрану роль користувача."""
+    conn = get_db_connection()
+    conn.execute('UPDATE users SET current_role = ? WHERE chat_id = ?', (role, chat_id))
+    conn.commit()
+
+def get_user_current_role(chat_id):
+    """Повертає поточну роль користувача."""
+    conn = get_db_connection()
+    res = conn.execute('SELECT current_role FROM users WHERE chat_id = ?', (chat_id,)).fetchone()
+    return res['current_role'] if res and res['current_role'] else None

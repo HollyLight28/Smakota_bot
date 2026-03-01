@@ -24,12 +24,20 @@ def get_client_keyboard():
     keyboard.row('📞 Написати нам / Допомога')
     return keyboard
 
-def get_courier_keyboard():
-    """Main keyboard for couriers."""
+def get_courier_keyboard(user_id=None):
+    """Клавіатура кур'єра з кнопкою зміни."""
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+    # Визначаємо текст кнопки зміни
+    shift_text = "🟢 Вийти на зміну"
+    if user_id:
+        conn = db.get_db_connection()
+        res = conn.execute('SELECT shift_status FROM couriers WHERE chat_id = ?', (user_id,)).fetchone()
+        if res and res['shift_status'] == 'on':
+            shift_text = "🔴 Завершити зміну"
+
     keyboard.row('🛵 Мої доставки (в роботі)')
-    keyboard.row('📊 Мій звіт за сьогодні')
-    keyboard.row('❓ Допомога')
+    keyboard.row(shift_text)
+    keyboard.row('📊 Мій звіт за сьогодні', '❓ Допомога')
     return keyboard
 
 def get_admin_keyboard():
@@ -133,8 +141,11 @@ def get_cart_actions_keyboard():
     return markup
 
 def get_empty_cart_keyboard():
+    """Клавіатура для порожнього кошика: тільки кнопка назад на сайт."""
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("🍕 Перейти до меню", callback_data="show_menu"))
+    from telebot.types import WebAppInfo
+    web_app = WebAppInfo(url="https://HollyLight28.github.io/smakota-telegram-app/")
+    markup.add(InlineKeyboardButton("🍕 ПЕРЕЙТИ ДО МЕНЮ (САЙТ)", web_app=web_app))
     return markup
 
 def get_checkout_cancel_keyboard():

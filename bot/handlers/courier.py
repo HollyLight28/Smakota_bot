@@ -113,3 +113,17 @@ def handle_my_report(message):
             f"Продуктивного дня! 🚀",
             parse_mode='Markdown'
         )
+
+@bot.message_handler(func=lambda message: message.text in ['🟢 Вийти на зміну', '🔴 Завершити зміну'])
+def toggle_shift(message):
+    """Вмикає/вимикає зміну кур'єра."""
+    user_id = message.from_user.id
+    new_status = 'on' if '🟢' in message.text else 'off'
+    
+    # Викликаємо функцію оновлення статусу
+    conn = db.get_db_connection()
+    conn.execute('UPDATE couriers SET shift_status = ? WHERE chat_id = ?', (new_status, user_id))
+    conn.commit()
+    
+    text = "🚀 **Ви на зміні!** Тепер ви бачите замовлення." if new_status == 'on' else "🔌 **Зміну завершено.** Гарного відпочинку!"
+    bot.reply_to(message, text, reply_markup=keyboards.get_courier_keyboard(user_id), parse_mode='Markdown')
