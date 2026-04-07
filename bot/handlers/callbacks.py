@@ -11,12 +11,12 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from bot import bot
 from bot.config import ADMIN_ID
-from bot.utils import logger, format_cart_message, clean_phone, get_maps_url
+from bot.utils import logger, format_cart_message, clean_phone, get_maps_url, escape_md
 import database as db
 import keyboards
 
 
-@bot.callback_query_handler(func=lambda call: True)
+@bot.callback_query_handler(func=lambda call: not call.data.startswith('checkout'))
 def handle_callback(call):
     user_id = call.from_user.id
     data = call.data
@@ -391,9 +391,6 @@ def handle_callback(call):
             except telebot.apihelper.ApiTelegramException:
                 pass
 
-        # === Checkout Start ===
-        elif data == "checkout":
-            _handle_checkout_start(call, user_id)
 
         elif data == "noop":
             bot.answer_callback_query(call.id)
@@ -411,6 +408,17 @@ def handle_callback(call):
         elif data.startswith("courier_delivered_"):
             _handle_courier_delivered(call, user_id, data)
 
+        elif data.startswith("pay_cash_") or data.startswith("pay_card_"):
+            _handle_finalize_payment(call, user_id, data)
+
+        elif data.startswith("admin_sched_"):
+            # Шеф хоче відкласти замовлення
+            order_id = data.split("_")[2]
+            db.set_user_state(user_id, 'admin_setting_time', {'order_id': order_id})
+            bot.send_message(user_id, "⏳ **Введіть час доставки** (наприклад, 18:30):", reply_markup=keyboards.get_checkout_cancel_keyboard(), parse_mode='Markdown')
+            bot.answer_callback_query(call.id)
+            return
+
     except Exception as e:
         logger.error(f"Callback error: {e}")
         try:
@@ -419,75 +427,6 @@ def handle_callback(call):
             pass  # Callback вже протух — ігноруємо
 
 
-# === Checkout start helper ===
-def _handle_checkout_start(call, user_id):
-    """Обробка початку оформлення замовлення через inline-кнопку."""
-    _, total, _ = format_cart_message(user_id)
-    if total == 0:
-        bot.answer_callback_query(call.id, "Кошик порожній!", show_alert=True)
-        return
-
-    dispatchers = db.get_dispatchers()
-    is_dispatcher = any(d['chat_id'] == user_id for d in dispatchers) or user_id == ADMIN_ID
-
-    hall_staff = db.get_hall_staff()
-    is_hall = any(h['chat_id'] == user_id for h in hall_staff)
-
-    if is_hall:
-        # Наташа: швидке оформлення without delivery
-        cart_items = db.get_cart_items(user_id)
-        total = sum(item['price'] * item['quantity'] for item in cart_items)
-        order_id = db.create_order(user_id, total, "💵 Каса (ЗАЛ)", {'name': 'Зал', 'address': 'В закладі'}, cart_items)
-        if order_id:
-            conn = db.get_db_connection()
-            conn.execute('UPDATE orders SET hall_staff_id = ? WHERE id = ?', (user_id, order_id))
-            conn.commit()
-            db.clear_cart(user_id)
-            db.clear_user_state(user_id)
-
-            receipt = f"🎫 **ЧЕК #{order_id} (ЗАЛ)**\n"
-            receipt += "----------------------------\n"
-            for item in cart_items:
-                receipt += f"• {item['name']} x{item['quantity']}\n"
-            receipt += "----------------------------\n"
-            receipt += f"💰 **ВСЬОГО до сплати: {total} грн**\n\n"
-            receipt += "📢 Покажіть цей чек на кухні."
-
-            bot.send_message(call.message.chat.id, receipt, reply_markup=keyboards.get_hall_staff_keyboard(), parse_mode='Markdown')
-            if ADMIN_ID:
-                bot.send_message(ADMIN_ID, f"🆕 **Нове замовлення із ЗАЛУ (#{order_id})**\nСума: {total} грн")
-        return
-
-    if is_dispatcher:
-        db.set_user_state(user_id, 'manual_checkout_name')
-        bot.send_message(
-            call.message.chat.id,
-            "📞 **Оформлення РУЧНОГО замовлення**\n\nЯк звати клієнта?",
-            reply_markup=keyboards.get_checkout_cancel_keyboard(),
-            parse_mode='Markdown'
-        )
-        return
-
-    # Normal client checkout
-    last_order = db.get_last_order(user_id)
-    if last_order:
-        db.set_user_state(user_id, 'checkout_use_history', {'history': dict(last_order)})
-        bot.send_message(
-            call.message.chat.id,
-            f"📝 **Знайдено ваші минулі дані:**\n\n"
-            f"👤 {last_order['delivery_name']}\n📞 {last_order['delivery_phone']}\n📍 {last_order['delivery_address']}\n\n"
-            "Бажаєте використати їх знову?",
-            reply_markup=keyboards.get_use_previous_data_keyboard(),
-            parse_mode='Markdown'
-        )
-    else:
-        db.set_user_state(user_id, 'checkout_name')
-        bot.send_message(
-            call.message.chat.id,
-            "📝 **Оформлення замовлення**\n\nЯк до вас звертатися? (Введіть ім'я)",
-            reply_markup=keyboards.get_checkout_cancel_keyboard(),
-            parse_mode='Markdown'
-        )
 
 
 # === Admin Order helpers ===
@@ -497,31 +436,38 @@ def _handle_admin_accept(call, user_id, data):
         return
 
     order_id = data.split("_")[2]
-    couriers = db.get_couriers()
+    
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("🚀 ГОТУВАТИ ОДРАЗУ", callback_data=f"admin_accept_now_{order_id}"))
+    markup.add(InlineKeyboardButton("⏰ ПРИЙНЯТИ НА ЧАС", callback_data=f"admin_sched_{order_id}"))
 
+    bot.edit_message_text(
+        chat_id=call.message.chat.id, 
+        message_id=call.message.message_id,
+        text=f"👨‍🍳 **Замовлення #{order_id}**\nОберіть режим роботи:",
+        reply_markup=markup, 
+        parse_mode='Markdown'
+    )
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("admin_accept_now_"))
+def _handle_admin_accept_now(call):
+    """Швидке прийняття — вибір кур'єра."""
+    user_id = call.from_user.id
+    order_id = call.data.split("_")[3]
+    
+    couriers = db.get_couriers()
     if not couriers:
-        bot.answer_callback_query(call.id, "⚠️ Немає кур'єрів! Використайте /add_courier", show_alert=True)
+        bot.answer_callback_query(call.id, "⚠️ Немає кур'єрів!", show_alert=True)
         return
 
     markup = InlineKeyboardMarkup()
-    for courier in couriers:
-        markup.add(InlineKeyboardButton(f"🛵 {courier['name']}", callback_data=f"assign_{order_id}_{courier['chat_id']}"))
+    for c in couriers:
+        # Показуємо касу кур'єра в дужках як я обіцяв! 💰
+        res = db.get_daily_report(c['chat_id'])
+        c_cash = res[1] if res else 0
+        markup.add(InlineKeyboardButton(f"🛵 {c['name']} ({c_cash} грн)", callback_data=f"assign_{order_id}_{c['chat_id']}"))
 
-    try:
-        bot.edit_message_text(
-            chat_id=call.message.chat.id, message_id=call.message.message_id,
-            text=f"✅ **Замовлення #{order_id} прийнято.**\nОберіть кур'єра для доставки:",
-            reply_markup=markup, parse_mode='Markdown'
-        )
-    except telebot.apihelper.ApiTelegramException:
-        pass
-
-    order = db.get_order_by_id(order_id)
-    if order:
-        try:
-            bot.send_message(order['user_id'], f"👨‍🍳 **Ваше замовлення #{order_id} прийнято!**\nГотуємо смакоту. Скоро передамо кур'єру.", parse_mode='Markdown')
-        except Exception as e:
-            logger.warning(f"Failed to notify user: {e}")
+    bot.edit_message_text(f"🚀 **Замовлення #{order_id} прийнято.**\nПризначте кур'єра:", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode='Markdown')
 
 
 def _handle_admin_cancel(call, user_id, data):
@@ -565,31 +511,29 @@ def _handle_assign_courier(call, user_id, data):
 
     try:
         order = db.get_order_by_id(order_id)
-        courier_markup = InlineKeyboardMarkup()
-        courier_markup.add(InlineKeyboardButton("✅ ЗАМОВЛЕННЯ ДОСТАВЛЕНО", callback_data=f"courier_delivered_{order_id}"))
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton("✅ ЗАМОВЛЕННЯ ДОСТАВЛЕНО", callback_data=f"courier_delivered_{order_id}"))
 
         address = order['delivery_address']
         maps_url = get_maps_url(address)
         raw_phone = str(order['delivery_phone'])
-        phone = clean_phone(raw_phone)
 
-        courier_markup.add(
-            InlineKeyboardButton("🗺️ Побудувати маршрут", url=maps_url),
-            InlineKeyboardButton("📞 Зателефонувати", url=f"tel:{phone}")
+        markup.add(
+            InlineKeyboardButton("🗺️ Побудувати маршрут", url=maps_url)
         )
 
         msg = (
-            f"📍 **АДРЕСА: {order['delivery_address'].upper()}**\n"
+            f"📍 *АДРЕСА: {escape_md(order['delivery_address']).upper()}*\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"📞 **Телефон:** `{raw_phone}`\n"
-            f"👤 **Клієнт:** {order['delivery_name']}\n"
-            f"💰 **Сума:** {order['total_amount']} грн ({order['payment_method']})\n"
-            f"📝 **Коментар:** {order['comment'] if order['comment'] else '---'}\n"
-            f"📦 **Замовлення:** #{order['id']}"
+            f"📞 *Телефон:* {raw_phone}\n"
+            f"👤 *Клієнт:* {escape_md(order['delivery_name'])}\n"
+            f"💰 *Сума:* {order['total_amount']} грн ({escape_md(order['payment_method'])})\n"
+            f"📝 *Коментар:* {escape_md(order['comment']) if order['comment'] else '---'}\n"
+            f"📦 *Замовлення:* #{order['id']}"
         )
-        bot.send_message(courier_id, msg, reply_markup=courier_markup, parse_mode='Markdown')
+        bot.send_message(courier_id, msg, reply_markup=markup, parse_mode='Markdown')
 
-        bot.send_message(order['user_id'], f"🛵 **Кур'єр вже в дорозі!**\nОчікуйте доставку на адресу: **{order['delivery_address']}**", parse_mode='Markdown')
+        # TODO: Додати кнопку "Буду за 5 хвилин" для кур'єра, яка надсилатиме повідомлення клієнту
 
     except Exception as e:
         logger.error(f"Failed to notify courier: {e}")
@@ -600,27 +544,53 @@ def _handle_courier_delivered(call, user_id, data):
     order = db.get_order_by_id(order_id)
 
     if not order or user_id != order['courier_id']:
-        bot.answer_callback_query(call.id, "⛔ Ви не є призначеним кур'єром для цього замовлення", show_alert=True)
+        bot.answer_callback_query(call.id, "⛔ Ви не є кур'єром цього замовлення", show_alert=True)
         return
 
+    # Замість миттєвого закриття — питаємо про гроші
+    markup = InlineKeyboardMarkup()
+    markup.add(
+        InlineKeyboardButton("💵 ГОТІВКА", callback_data=f"pay_cash_{order_id}"),
+        InlineKeyboardButton("💳 НА КАРТУ", callback_data=f"pay_card_{order_id}")
+    )
+    
+    bot.edit_message_text(
+        chat_id=call.message.chat.id, 
+        message_id=call.message.message_id,
+        text=f"💰 **Замовлення #{order_id}**\n📍 {order['delivery_address']}\n\n**Оберіть, як розрахувався клієнт:**",
+        reply_markup=markup,
+        parse_mode='Markdown'
+    )
+
+def _handle_finalize_payment(call, user_id, data):
+    """Фінальне закриття замовлення з підтвердженим способом оплати."""
+    method_key = "pay_cash_" if "pay_cash_" in data else "pay_card_"
+    order_id = data.replace(method_key, "")
+    payment_method = "💵 Готівка" if method_key == "pay_cash_" else "💳 На карту"
+    
+    order = db.get_order_by_id(order_id)
+    if not order: return
+
+    # Оновлюємо статус та ФАКТИЧНИЙ спосіб оплати
     db.update_order_status(order_id, 'completed')
+    conn = db.get_db_connection()
+    conn.execute('UPDATE orders SET payment_method = ?, cash_confirmed = 1 WHERE id = ?', (payment_method, order_id))
+    conn.commit()
 
+    bot.edit_message_text(
+        chat_id=call.message.chat.id, 
+        message_id=call.message.message_id,
+        text=f"✅ **Замовлення #{order_id} закрито!**\nРозрахунок: {payment_method}\n\nГарна робота, шеф задоволений! 😎",
+        parse_mode='Markdown'
+    )
+
+    # Сповіщення клієнту
     try:
-        bot.edit_message_text(
-            chat_id=call.message.chat.id, message_id=call.message.message_id,
-            text=f"✅ **Замовлення #{order_id} доставлено!**\nГарна робота!", parse_mode='Markdown'
-        )
-    except telebot.apihelper.ApiTelegramException:
-        pass
+        bot.send_message(order['user_id'], f"🏁 **Смачного!** Замовлення #{order_id} доставлено.\nБудемо раді вашим новим замовленням! ❤️", parse_mode='Markdown')
+    except Exception: pass
 
-    if order:
-        try:
-            bot.send_message(order['user_id'], f"🏁 **Замовлення #{order_id} доставлено!**\nСмачного! Чекаємо на вас знову.", parse_mode='Markdown')
-        except Exception:
-            pass
-
+    # Сповіщення Адміну
     if ADMIN_ID:
         try:
-            bot.send_message(ADMIN_ID, f"🏁 Замовлення #{order_id} успішно доставлено.")
-        except Exception:
-            pass
+            bot.send_message(ADMIN_ID, f"🏁 **Замовлення #{order_id} завершено.**\nКур'єр: {call.from_user.first_name}\nСума: {order['total_amount']} грн ({payment_method})", parse_mode='Markdown')
+        except Exception: pass

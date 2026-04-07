@@ -108,12 +108,6 @@ def setup_database():
                 current_role TEXT
             )
         ''')
-        
-        # Перевірка чи є колонка current_role (якщо таблиця була створена раніше)
-        cursor.execute("PRAGMA table_info(users)")
-        columns = [info[1] for info in cursor.fetchall()]
-        if 'current_role' not in columns:
-            cursor.execute("ALTER TABLE users ADD COLUMN current_role TEXT")
 
         # Mailing templates table
         cursor.execute('''
@@ -123,12 +117,6 @@ def setup_database():
                 content TEXT NOT NULL
             )
         ''')
-
-        # Add shift_status to couriers
-        cursor.execute("PRAGMA table_info(couriers)")
-        courier_columns = [info[1] for info in cursor.fetchall()]
-        if 'shift_status' not in courier_columns:
-            cursor.execute("ALTER TABLE couriers ADD COLUMN shift_status TEXT DEFAULT 'off'")
 
         # Order Items table
         cursor.execute('''
@@ -142,7 +130,7 @@ def setup_database():
             )
         ''')
 
-        # Couriers table
+        # Couriers table — MUST be created BEFORE shift_status migration
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS couriers (
                 id INTEGER PRIMARY KEY,
@@ -177,22 +165,6 @@ def setup_database():
                 item_name TEXT NOT NULL UNIQUE
             )
         ''')
-        
-        # Add some initial templates if table is empty
-        cursor.execute("SELECT COUNT(*) FROM shopping_templates")
-        if cursor.fetchone()[0] == 0:
-            default_items = [
-                ('Борошно',), ('Олія',), ('Цукор',), ('М\'ясо',), 
-                ('Картопля',), ('Яйця',), ('Молоко',), ('Сир',)
-            ]
-            cursor.executemany('INSERT INTO shopping_templates (item_name) VALUES (?)', default_items)
-
-        # Migration: Add hall_staff_id to orders
-        cursor.execute("PRAGMA table_info(orders)")
-        order_columns = [info[1] for info in cursor.fetchall()]
-        if 'hall_staff_id' not in order_columns:
-            logging.info("Migrating database: Adding hall_staff_id column to orders table.")
-            cursor.execute("ALTER TABLE orders ADD COLUMN hall_staff_id INTEGER")
 
         # Dispatchers table
         cursor.execute('''
@@ -212,13 +184,6 @@ def setup_database():
             )
         ''')
 
-        # Migration: Check if courier_id exists in orders, if not add it
-        cursor.execute("PRAGMA table_info(orders)")
-        order_columns = [info[1] for info in cursor.fetchall()]
-        if 'courier_id' not in order_columns:
-            logging.info("Migrating database: Adding courier_id column to orders table.")
-            cursor.execute("ALTER TABLE orders ADD COLUMN courier_id INTEGER")
-
         # Create route_batches table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS route_batches (
@@ -229,11 +194,48 @@ def setup_database():
             )
         ''')
 
-        # Migration: Add batch_id and route_order to orders
+        # ========== MIGRATIONS (after all tables exist) ==========
+
+        # Migration: users.current_role
+        cursor.execute("PRAGMA table_info(users)")
+        columns = [info[1] for info in cursor.fetchall()]
+        if 'current_role' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN current_role TEXT")
+
+        # Migration: couriers.shift_status
+        cursor.execute("PRAGMA table_info(couriers)")
+        courier_columns = [info[1] for info in cursor.fetchall()]
+        if 'shift_status' not in courier_columns:
+            cursor.execute("ALTER TABLE couriers ADD COLUMN shift_status TEXT DEFAULT 'off'")
+
+        # Migration: orders.hall_staff_id, courier_id, batch_id, route_order
+        cursor.execute("PRAGMA table_info(orders)")
+        order_columns = [info[1] for info in cursor.fetchall()]
+        if 'hall_staff_id' not in order_columns:
+            logging.info("Migrating database: Adding hall_staff_id column to orders table.")
+            cursor.execute("ALTER TABLE orders ADD COLUMN hall_staff_id INTEGER")
+        if 'courier_id' not in order_columns:
+            logging.info("Migrating database: Adding courier_id column to orders table.")
+            cursor.execute("ALTER TABLE orders ADD COLUMN courier_id INTEGER")
         if 'batch_id' not in order_columns:
             cursor.execute("ALTER TABLE orders ADD COLUMN batch_id INTEGER")
         if 'route_order' not in order_columns:
             cursor.execute("ALTER TABLE orders ADD COLUMN route_order INTEGER")
+        if 'scheduled_time' not in order_columns:
+            logging.info("Migrating database: Adding scheduled_time column.")
+            cursor.execute("ALTER TABLE orders ADD COLUMN scheduled_time TEXT")
+        if 'reminded' not in order_columns:
+            logging.info("Migrating database: Adding reminded column.")
+            cursor.execute("ALTER TABLE orders ADD COLUMN reminded INTEGER DEFAULT 0")
+
+        # Seed: shopping templates
+        cursor.execute("SELECT COUNT(*) FROM shopping_templates")
+        if cursor.fetchone()[0] == 0:
+            default_items = [
+                ('Борошно',), ('Олія',), ('Цукор',), ('М\'ясо',), 
+                ('Картопля',), ('Яйця',), ('Молоко',), ('Сир',)
+            ]
+            cursor.executemany('INSERT INTO shopping_templates (item_name) VALUES (?)', default_items)
 
         conn.commit()
         conn.close()
@@ -434,13 +436,48 @@ def get_order_by_id(order_id):
     conn = get_db_connection()
     return conn.execute('SELECT * FROM orders WHERE id = ?', (order_id,)).fetchone()
 
+def get_active_orders():
+    """Fetches all orders that are not completed or cancelled."""
+    conn = get_db_connection()
+    return conn.execute('SELECT * FROM orders WHERE status NOT IN ("completed", "cancelled") ORDER BY created_at DESC').fetchall()
+
 # --- Courier Functions ---
 
 def assign_courier(order_id, courier_id):
     """Assigns an order to a courier."""
     conn = get_db_connection()
+    # Якщо замовлення було відкладене — тепер воно в дорозі
     conn.execute('UPDATE orders SET courier_id = ?, status = "delivery" WHERE id = ?', (courier_id, order_id))
     conn.commit()
+
+def get_orders_to_remind():
+    """Повертає замовлення, про які треба нагадати шефу (за 60 хв до часу)."""
+    conn = get_db_connection()
+    # Тільки ті, де статус 'scheduled' і ще не нагадували
+    return conn.execute('''
+        SELECT * FROM orders 
+        WHERE status = 'scheduled' AND reminded = 0 
+        AND scheduled_time IS NOT NULL
+    ''').fetchall()
+
+def mark_as_reminded(order_id):
+    conn = get_db_connection()
+    conn.execute('UPDATE orders SET reminded = 1 WHERE id = ?', (order_id,))
+    conn.commit()
+
+def set_order_scheduled(order_id, time_str):
+    conn = get_db_connection()
+    conn.execute('UPDATE orders SET status = "scheduled", scheduled_time = ? WHERE id = ?', (time_str, order_id))
+    conn.commit()
+
+def get_courier_active_orders(courier_id):
+    """Fetches active orders for a specific courier."""
+    conn = get_db_connection()
+    return conn.execute('''
+        SELECT * FROM orders 
+        WHERE courier_id = ? AND status IN ("delivery", "assigned")
+        ORDER BY CASE WHEN route_order IS NULL THEN 999 ELSE route_order END ASC
+    ''', (courier_id,)).fetchall()
 
 def create_route_batch(courier_id, order_ids):
     """Creates a batch of orders for a courier in a specific sequence."""

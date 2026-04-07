@@ -61,16 +61,12 @@ def send_welcome(message):
 
 
 def _get_role_keyboard(user_id: int):
-    """
-    Визначає роль користувача. 
-    Тепер ми спершу дивимось, яку роль користувач вибрав останньою в /roles.
-    """
+    """Визначає клавіатуру на основі поточної ролі користувача."""
     saved_role = db.get_user_current_role(user_id)
     
     if saved_role == "admin": return keyboards.get_admin_keyboard()
-    if saved_role == "courier": return keyboards.get_courier_keyboard()
+    if saved_role == "courier": return keyboards.get_courier_keyboard(user_id)
     if saved_role == "hall": return keyboards.get_hall_staff_keyboard()
-    if saved_role == "client": return keyboards.get_client_keyboard()
-
-    # Якщо ролі в базі немає (перший старт) - для Адміна все одно покажемо Клієнта (щоб бачив сайт)
+    
+    # Всі інші випадки (включаючи роль 'client' або відсутність ролі)
     return keyboards.get_client_keyboard()

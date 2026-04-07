@@ -22,21 +22,39 @@ logging.basicConfig(
 logger = logging.getLogger('SmakotaBot')
 
 
+def escape_md(text) -> str:
+    """Екранує спецсимволи Markdown V1 для безпечної відправки в Telegram.
+    Без цього бот впаде, якщо ім'я кур'єра або адреса має _, *, ` тощо."""
+    if text is None:
+        return ""
+    text = str(text)
+    for ch in ('_', '*', '`', '[', ']'):
+        text = text.replace(ch, f'\\{ch}')
+    return text
+
+
 def clean_phone(phone: str) -> str:
-    """Очищає номер та додає +380 для українських номерів.
+    """Очищає номер та додає +38 для українських номерів.
     Telegram вимагає tel: URL у міжнародному форматі."""
+    if not phone:
+        return "+380000000000"
     cleaned = re.sub(r'[^\d+]', '', str(phone))
-    # Якщо номер починається з 0 (укр формат без коду країни)
-    if cleaned.startswith('0') and len(cleaned) == 10:
-        cleaned = '+380' + cleaned[1:]
+    
+    if cleaned.startswith('0'):
+        # Трактуємо як укр номер, навіть якщо зайві цифри (типо помилка вводу)
+        cleaned = '+38' + cleaned
     elif not cleaned.startswith('+'):
         cleaned = '+' + cleaned
+        
     return cleaned
 
 
 def get_maps_url(address: str) -> str:
-    """Генерує URL для Google Maps маршруту в м. Рівне."""
-    safe_address = urllib.parse.quote(f"м. Рівне, {address}")
+    """Генерує посилання на Google Maps для м. Рівне."""
+    import urllib.parse
+    # Додаємо місто для точності, щоб не несло в інше місто
+    full_address = f"м. Рівне, {address}"
+    safe_address = urllib.parse.quote(full_address)
     return f"https://www.google.com/maps/dir/?api=1&destination={safe_address}"
 
 
@@ -62,14 +80,9 @@ def format_cart_message(user_id: int):
     message += f"\n💰 **РАЗОМ: {total} грн**"
 
     # Використовуємо спеціальну клавіатуру для фінального кроку
-    from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+    from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton("✅ ОФОРМИТИ ЗАМОВЛЕННЯ", callback_data="checkout"))
-    
-    # Кнопка повернення на сайт (замість старого меню чату)
-    web_app = WebAppInfo(url="https://HollyLight28.github.io/smakota-telegram-app/")
-    markup.add(InlineKeyboardButton("🔙 ПОВЕРНУТИСЬ НА САЙТ", web_app=web_app))
-    
     markup.add(InlineKeyboardButton("🗑️ Очистити кошик", callback_data="clear_cart"))
 
     return message, total, markup

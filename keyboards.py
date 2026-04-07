@@ -44,8 +44,8 @@ def get_admin_keyboard():
     """Майстер-клавіатура для Адміна/Шефа."""
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
     keyboard.row('📋 Нові замовлення', '📊 Виручка за сьогодні')
-    keyboard.row('📞 Нове ручне замовлення', '📋 Всі активні замовлення')
-    keyboard.row('📊 Моніторинг', '🔄 Оновити меню (GS)')
+    keyboard.row('📞 Нове ручне замовлення', '🛒 Поточний кошик')
+    keyboard.row('📊 Моніторинг', '📋 Всі активні замовлення')
     keyboard.row('📣 Розсилка', '📖 Інструкція')
     return keyboard
 
@@ -175,8 +175,8 @@ def get_checkout_comment_keyboard():
     return markup
 
 def get_payment_method_keyboard():
-    """Payment selection + Navigation."""
+    """Вибір способу оплати."""
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-    markup.row("💵 Готівка", "💳 Термінал")
+    markup.row("💵 Готівка", "💳 На карту")
     markup.row("🔙 Назад", "❌ Скасувати")
     return markup
