@@ -212,5 +212,6 @@ def process_checkout_step(message):
             from bot.handlers.start import _get_role_keyboard
             bot.send_message(user_id, f"🎉 **Замовлення #{order_id} прийнято!**", reply_markup=_get_role_keyboard(user_id), parse_mode='Markdown')
             if ADMIN_ID:
-                bot.send_message(ADMIN_ID, f"🔥 **НОВЕ ЗАМОВЛЕННЯ #{order_id}**\n👤 {data['name']}\n📍 {data['address']}\n💰 {total_price} грн", parse_mode='Markdown')
+                cart_details = "\n".join([f"• {i['name']} x{i['quantity']}" for i in cart_items])
+                bot.send_message(ADMIN_ID, f"🔥 **НОВЕ ЗАМОВЛЕННЯ #{order_id}**\n👤 {data['name']}\n📞 {data['contact']}\n📍 {data['address']}\n💰 {total_price} грн ({message.text})\n\n🛒 **Кошик:**\n{cart_details}", parse_mode='Markdown')
         return
