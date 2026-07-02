@@ -12,4 +12,4 @@ def handle_default_message(message):
     """Стандартна відповідь на невідомі повідомлення."""
     logger.info(f"Unhandled message: '{message.text}' from {message.from_user.id}")
     if message.chat.type == 'private':
-        bot.reply_to(message, "🤔 Я вас не розумію. Скористайтеся меню.", reply_markup=keyboards.get_main_keyboard())
+        bot.reply_to(message, "👋 Оберіть дію з меню нижче", reply_markup=keyboards.get_main_keyboard())

@@ -4,12 +4,24 @@
 """
 from bot import bot
 from bot.config import ADMIN_ID
-from bot.utils import logger
+from bot.utils import logger, escape_md
 import database as db
 import keyboards
 
 
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+
+@bot.message_handler(commands=['role'])
+def show_role_selection(message):
+    """Показує inline-клавіатуру з усіма ролями (доступно всім користувачам)."""
+    first_name = escape_md(message.from_user.first_name)
+    bot.reply_to(
+        message,
+        f"🎭 **Вибір ролі**\nПривіт, {first_name}! Обери, який інтерфейс тобі підходить:",
+        reply_markup=keyboards.get_role_selection_keyboard(),
+        parse_mode='Markdown'
+    )
 
 
 @bot.message_handler(commands=['roles'])

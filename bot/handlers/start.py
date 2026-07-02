@@ -6,7 +6,7 @@ import os
 
 from bot import bot
 from bot.config import ADMIN_ID, LOGO_PATH
-from bot.utils import logger
+from bot.utils import logger, escape_md
 import database as db
 import keyboards
 
@@ -28,17 +28,34 @@ def send_welcome(message):
     db.clear_user_state(user.id)
 
     welcome_text = (
-        f"👋 Вітаємо у Smakota, {user.first_name}!\n\n"
-        "🥗 **Справжня домашня кухня у вашому смартфоні.**\n"
-        "Ми готуємо з найсвіжіших продуктів Рівного та доставляємо гарячим прямо до ваших дверей.\n\n"
-        "✨ **Чому обирають нас:**\n"
-        "• Тільки натуральні інгредієнти\n"
-        "• Швидка доставка по місту\n"
-        "• Смак, як вдома\n\n"
+        f"👋 Вітаємо, {escape_md(user.first_name)}!\n\n"
+        "🥘 **SMAKOTA — справжня домашня кухня в Рівному**\n"
+        "Ми готуємо з найсвіжіших продуктів, щоб ви насолоджувалися смаком, як вдома.\n\n"
+        "⏰ **Графік роботи:**\n"
+        "• Пн–Пт: 9:00 – 17:00\n"
+        "• Сб: 9:30 – 15:30\n"
+        "• Нд: вихідний\n\n"
+        "📞 **Телефони:**\n"
+        "• +38 068 876 33 08\n"
+        "• +38 093 148 53 93\n\n"
+        "🚚 **Доставка:**\n"
+        "• Вартість: від 40 грн\n"
+        "• Безкоштовно при замовленні від 300 грн (у центрі міста)\n"
+        "• Мінімальне замовлення онлайн: 300 грн\n\n"
         "👇 **Оберіть бажаний розділ:**"
     )
 
     # Визначаємо роль
+    saved_role = db.get_user_current_role(user.id)
+
+    if saved_role == "admin":
+        welcome_text += (
+            "\n\n👑 **Панель адміністратора:**\n"
+            "• `/set_role_client` — перейти в режим клієнта\n"
+            "• `/set_role_courier` — перейти в режим кур'єра\n"
+            "• `/roles` — керування ролями"
+        )
+
     markup = _get_role_keyboard(user.id)
 
     try:

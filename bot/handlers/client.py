@@ -56,17 +56,45 @@ def show_cart(message):
     bot.send_message(message.chat.id, cart_text, reply_markup=cart_markup, parse_mode='Markdown')
 
 
+@bot.message_handler(func=lambda message: message.text == '📖 Про нас')
+def show_about(message):
+    """Показує інформацію про SMAKOTA."""
+    about_text = (
+        "🥘 **SMAKOTA — домашня кухня в Рівному**\n\n"
+        "Ми готуємо з найсвіжіших продуктів, щоб ви відчули справжній домашній смак.\n\n"
+        "📍 **Адреса:** вул. Литовська, 55, Рівне\n\n"
+        "📞 **Телефони:**\n"
+        "• +38 068 876 33 08\n"
+        "• +38 093 148 53 93\n\n"
+        "📧 **Email:** domsmakota@gmail.com\n\n"
+        "⏰ **Графік роботи:**\n"
+        "• Пн–Пт: 9:00 – 17:00\n"
+        "• Сб: 9:30 – 15:30\n"
+        "• Нд: вихідний\n\n"
+        "🚚 **Доставка:**\n"
+        "• Вартість: від 40 грн\n"
+        "• Безкоштовно при замовленні від 300 грн (у центрі міста)\n"
+        "• Мінімальне замовлення онлайн: 300 грн\n\n"
+        "🌐 **Сайт:** smakota.com.ua"
+    )
+    bot.reply_to(message, about_text, parse_mode='Markdown')
+
+
 @bot.message_handler(func=lambda message: message.text == '📞 Контакти')
 def show_contacts(message):
     """Показує контакти Smakota."""
     contacts_text = (
         "📞 **Контакти Smakota:**\n\n"
         "📱 Телефони:\n"
-        "• +38 (068) 876 33 08\n"
-        "• +38 (093) 148 53 93\n"
+        "• +38 068 876 33 08\n"
+        "• +38 093 148 53 93\n"
         "📧 Email: domsmakota@gmail.com\n"
-        "📍 Адреса: м. Рівне, вул. Литовська, буд. 55\n\n"
-        "⏰ Ми працюємо щодня з 10:00 до 22:00."
+        "📍 Адреса: м. Рівне, вул. Литовська, 55\n\n"
+        "⏰ Графік роботи:\n"
+        "• Пн–Пт: 9:00 – 17:00\n"
+        "• Сб: 9:30 – 15:30\n"
+        "• Нд: вихідний\n\n"
+        "🚚 Доставка: від 40 грн, безкоштовно від 300 грн (центр)"
     )
     bot.reply_to(message, contacts_text, parse_mode='Markdown')
 

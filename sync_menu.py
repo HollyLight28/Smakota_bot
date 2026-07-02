@@ -4,7 +4,10 @@ import sqlite3
 import re
 import os
 import json
-from database import upsert_category, upsert_item, deactivate_items_not_in_list
+from database import upsert_category, upsert_item, deactivate_items_not_in_list, get_db_connection
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger('SyncMenu')
 
 BASE_URL = "https://smakota.com.ua"
 MENU_URL = f"{BASE_URL}/menu"
@@ -63,11 +66,13 @@ def sync():
             cat_name = prev_cat_p.get_text(strip=True) if prev_cat_p else "Unknown"
             cat_id = CATEGORY_MAP.get(cat_name)
             
+            if not cat_id: continue
+            # Upsert category first (needed for FK constraint + WebApp)
+            upsert_category(cat_id, cat_name)
+            
             name_el = div.find('span', class_=lambda x: x and 'font-medium' in x and 'text-lg' in x)
             if not name_el: continue
             name = name_el.get_text(strip=True)
-            
-            if not cat_id: continue
 
             desc_p = div.find('p', class_=lambda x: x and 'text-gray-500' in x)
             desc_full = desc_p.get_text(strip=True) if desc_p else ""
@@ -105,7 +110,7 @@ def sync():
             active_item_names.append(name)
             
         except Exception as e:
-            pass
+            logger.error(f"Sync item #{i} error: {e}")
 
     deactivate_items_not_in_list(active_item_names)
     export_for_webapp()

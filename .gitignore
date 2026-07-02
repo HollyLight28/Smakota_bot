@@ -15,3 +15,8 @@ __pycache__/
 # Temporary data files
 menu.csv
 *.log
+
+# OpenCode / AI agent artifacts
+.omo/
+.opencode_prompt.md
+.opencode_tasks/

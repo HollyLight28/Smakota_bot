@@ -21,7 +21,7 @@ def get_client_keyboard():
     web_app = WebAppInfo(url="https://HollyLight28.github.io/smakota-telegram-app/") 
     
     keyboard.row(KeyboardButton('🍕 ВІДКРИТИ МЕНЮ (Сайт)', web_app=web_app))
-    keyboard.row('📞 Написати нам / Допомога')
+    keyboard.row('📖 Про нас', '❓ Допомога')
     return keyboard
 
 def get_courier_keyboard(user_id=None):
@@ -180,3 +180,12 @@ def get_payment_method_keyboard():
     markup.row("💵 Готівка", "💳 На карту")
     markup.row("🔙 Назад", "❌ Скасувати")
     return markup
+
+def get_role_selection_keyboard():
+    """Inline keyboard with all available roles for the /role command."""
+    keyboard = InlineKeyboardMarkup()
+    keyboard.add(InlineKeyboardButton("👑 Адмін", callback_data="set_role_admin"))
+    keyboard.add(InlineKeyboardButton("🛵 Кур'єр", callback_data="set_role_courier"))
+    keyboard.add(InlineKeyboardButton("👤 Клієнт", callback_data="set_role_client"))
+    keyboard.add(InlineKeyboardButton("💃 Зал", callback_data="set_role_hall"))
+    return keyboard
