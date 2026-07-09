@@ -166,14 +166,7 @@ def setup_database():
             )
         ''')
 
-        # Dispatchers table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS dispatchers (
-                id INTEGER PRIMARY KEY,
-                name TEXT NOT NULL,
-                chat_id INTEGER NOT NULL
-            )
-        ''')
+
 
         # Chefs table
         cursor.execute('''
@@ -521,7 +514,6 @@ def remove_user_from_roles(chat_id):
     conn = get_db_connection()
     conn.execute('DELETE FROM couriers WHERE chat_id = ?', (chat_id,))
     conn.execute('DELETE FROM hall_staff WHERE chat_id = ?', (chat_id,))
-    conn.execute('DELETE FROM dispatchers WHERE chat_id = ?', (chat_id,))
     conn.commit()
 
 def get_shopping_templates():
@@ -558,10 +550,7 @@ def delete_shopping_item(item_id):
     conn.execute('DELETE FROM shopping_list WHERE id = ?', (item_id,))
     conn.commit()
 
-def get_dispatchers():
-    """Fetches all registered dispatchers."""
-    conn = get_db_connection()
-    return conn.execute('SELECT * FROM dispatchers').fetchall()
+
 
 def get_chefs():
     """Fetches all registered chefs."""
@@ -579,11 +568,7 @@ def add_courier(name, chat_id):
     conn.execute('INSERT INTO couriers (name, chat_id) VALUES (?, ?)', (name, chat_id))
     conn.commit()
 
-def add_dispatcher(name, chat_id):
-    """Adds a new dispatcher."""
-    conn = get_db_connection()
-    conn.execute('INSERT INTO dispatchers (name, chat_id) VALUES (?, ?)', (name, chat_id))
-    conn.commit()
+
 
 def add_chef(name, chat_id):
     """Adds a new chef."""

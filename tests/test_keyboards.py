@@ -38,11 +38,6 @@ class TestKeyboards:
         kb = keyboards.get_admin_keyboard()
         assert isinstance(kb, ReplyKeyboardMarkup)
 
-    def test_dispatcher_keyboard(self):
-        import keyboards
-        kb = keyboards.get_dispatcher_keyboard()
-        assert isinstance(kb, ReplyKeyboardMarkup)
-
     def test_hall_staff_keyboard(self):
         import keyboards
         kb = keyboards.get_hall_staff_keyboard()

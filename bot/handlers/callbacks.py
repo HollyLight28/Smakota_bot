@@ -290,7 +290,7 @@ def handle_callback(call):
         if data.startswith("category_"):
             # Перевіряємо, чи це стафф (Адмін або Наташа)
             state_info = db.get_user_state(user_id)
-            is_staff = (user_id == ADMIN_ID) or (state_info and state_info['state'] in ['dispatcher_picking_items', 'hall_picking_items', 'admin_batch_building'])
+            is_staff = (user_id == ADMIN_ID) or (state_info and state_info['state'] in ['hall_picking_items', 'admin_batch_building'])
             
             if not is_staff:
                 bot.answer_callback_query(call.id, "🛒 Будь ласка, використовуйте сайт для замовлення!", show_alert=True)
@@ -327,7 +327,7 @@ def handle_callback(call):
 
             # ШВИДКЕ ДОДАВАННЯ ДЛЯ ПЕРСОНАЛУ (БЕЗ ФОТО)
             state_info = db.get_user_state(user_id)
-            is_staff = (user_id == ADMIN_ID) or (state_info and state_info['state'] in ['dispatcher_picking_items', 'hall_picking_items'])
+            is_staff = (user_id == ADMIN_ID) or (state_info and state_info['state'] in ['hall_picking_items'])
             
             if is_staff:
                 db.add_to_cart(user_id, item_id)

@@ -15,12 +15,12 @@ Telebot обробляє хендлери в порядку їх реєстра�
 
 # 1. Commands first
 from bot.handlers import start       # /start, /help
-from bot.handlers import admin       # /add_hall_staff, /add_dispatcher, /add_courier, /updatemenu, admin buttons
+from bot.handlers import admin       # /add_hall_staff, /add_courier, /updatemenu, admin buttons
 from bot.handlers import courier     # courier buttons, /my_report
 
 # 2. Content type + text button handlers
 from bot.handlers import client      # web_app_data, cart, contacts, help
-from bot.handlers import dispatcher  # manual order button
+
 from bot.handlers import hall        # hall new check button
 from bot.handlers import kitchen     # kitchen buttons
 

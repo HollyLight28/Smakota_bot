@@ -44,18 +44,11 @@ def get_admin_keyboard():
     """Майстер-клавіатура для Адміна/Шефа."""
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
     keyboard.row('📋 Нові замовлення', '📊 Виручка за сьогодні')
-    keyboard.row('📞 Нове ручне замовлення', '🛒 Поточний кошик')
-    keyboard.row('📊 Моніторинг', '📋 Всі активні замовлення')
-    keyboard.row('📣 Розсилка', '📖 Інструкція')
+    keyboard.row('🛒 Поточний кошик', '📊 Моніторинг')
+    keyboard.row('📣 Розсилка')
     return keyboard
 
-def get_dispatcher_keyboard():
-    """Main keyboard for dispatchers (phone order operators)."""
-    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.row('📞 Нове ручне замовлення')
-    keyboard.row('📋 Всі активні замовлення')
-    keyboard.row('❓ Допомога')
-    return keyboard
+
 
 def get_hall_staff_keyboard():
     """Main keyboard for Natasha (Hall)."""
@@ -73,12 +66,10 @@ def get_kitchen_keyboard():
     keyboard.row('❓ Допомога')
     return keyboard
 
-def get_main_keyboard(is_courier=False, is_dispatcher=False, is_hall=False, is_kitchen=False):
+def get_main_keyboard(is_courier=False, is_hall=False, is_kitchen=False):
     """Fallback function, now delegates to specific roles."""
     if is_courier:
         return get_courier_keyboard()
-    if is_dispatcher:
-        return get_dispatcher_keyboard()
     if is_hall:
         return get_hall_staff_keyboard()
     if is_kitchen:

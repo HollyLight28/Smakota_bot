@@ -25,7 +25,7 @@ class TestDatabaseSetup:
 
         expected = [
             'cart_items', 'categories', 'chefs', 'couriers',
-            'dispatchers', 'hall_staff', 'items', 'mailing_templates',
+            'hall_staff', 'items', 'mailing_templates',
             'order_items', 'orders', 'route_batches',
             'shopping_list', 'shopping_templates', 'user_states', 'users'
         ]
@@ -366,7 +366,7 @@ class TestFSMStates:
 
 
 class TestRoles:
-    """Ролі: зал, диспетчер, шеф."""
+    """Ролі: зал, шеф."""
 
     def test_add_hall_staff(self, test_db):
         test_db.add_hall_staff('Наташа', 77777)
@@ -374,22 +374,14 @@ class TestRoles:
         assert len(staff) == 1
         assert staff[0]['name'] == 'Наташа'
 
-    def test_add_dispatcher(self, test_db):
-        test_db.add_dispatcher('Оля', 88888)
-        dispatchers = test_db.get_dispatchers()
-        assert len(dispatchers) == 1
-        assert dispatchers[0]['name'] == 'Оля'
-
     def test_remove_from_all_roles(self, test_db):
         test_db.add_courier('Мульти', 11111)
         test_db.add_hall_staff('Мульти', 11111)
-        test_db.add_dispatcher('Мульти', 11111)
 
         test_db.remove_user_from_roles(11111)
 
         assert len(test_db.get_couriers()) == 0
         assert len(test_db.get_hall_staff()) == 0
-        assert len(test_db.get_dispatchers()) == 0
 
     def test_user_current_role(self, test_db):
         conn = test_db.get_db_connection()
