@@ -183,7 +183,6 @@
 
         /* Image wrapper for add-btn positioning */
         .card-img-wrap {
-            position: relative;
             border-radius: var(--radius-md) var(--radius-md) 0 0;
             overflow: hidden;
             background: var(--section-alt);
@@ -196,14 +195,14 @@
             display: block;
         }
 
-        /* ── Floating Add Button ── */
+        /* ── Add Button inside card-body ── */
         .add-btn {
             position: absolute;
-            bottom: 10px;
-            right: 10px;
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
+            bottom: 12px;
+            right: 12px;
+            width: 36px;
+            height: 28px;
+            border-radius: 100px;
             background: var(--brand-gradient);
             border: none;
             color: #fff;
@@ -232,7 +231,8 @@
 
         /* ── Card Body ── */
         .card-body {
-            padding: 12px;
+            position: relative;
+            padding: 12px 12px 44px;
             display: flex;
             flex-direction: column;
             gap: 4px;
@@ -631,15 +631,15 @@
                     <div class="card">
                         <div class="card-img-wrap">
                             <img src="${item.image_url}" onerror="this.src='${placeholder}'" loading="lazy" alt="${item.name}">
+                        </div>
+                        <div class="card-body">
+                            <p class="card-title">${item.name}</p>
+                            <p class="card-price">${item.price} &#8372;</p>
                             <button class="add-btn" onclick="addToCart(${item.id},'${safeName}',${item.price})" aria-label="Add ${item.name}">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
                                     <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                                 </svg>
                             </button>
-                        </div>
-                        <div class="card-body">
-                            <p class="card-title">${item.name}</p>
-                            <p class="card-price">${item.price} &#8372;</p>
                         </div>
                     </div>
                 `;
