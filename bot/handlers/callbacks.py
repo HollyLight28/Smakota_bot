@@ -279,20 +279,6 @@ def handle_callback(call):
                 call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode='Markdown'
             )
 
-        elif data == "shop_done":
-            items = db.get_active_shopping_list()
-            if not items:
-                bot.edit_message_text(
-                    "✅ Список порожній. Додай продукти через цехи.",
-                    call.message.chat.id, call.message.message_id
-                )
-                return
-            msg = "📋 **Список закупів сформовано!**\n\n"
-            for i in items:
-                status = "✅" if i['is_purchased'] else "⬜"
-                msg += f"{status} {i['name']} — {i['quantity']}\n"
-            bot.edit_message_text(msg, call.message.chat.id, call.message.message_id, parse_mode='Markdown')
-
         # === Shift Control ===
         if data == "shift_on":
             conn = db.get_db_connection()
@@ -502,6 +488,25 @@ def handle_callback(call):
             return
 
         # === Shopping List Admin Callbacks (Шеф) ===
+        if data == "shop_done":
+            items = db.get_active_shopping_list()
+            if not items:
+                bot.edit_message_text(
+                    "✅ Список порожній. Додай продукти через цехи.",
+                    call.message.chat.id, call.message.message_id
+                )
+                return
+            # Формуємо сповіщення для Шефа
+            msg = "📋 **Новий список закупів сформовано!**\n\n"
+            for i in items:
+                status = "✅" if i['is_purchased'] else "⬜"
+                item_name = i['name'] or f"📝 #{i['id']}"
+                msg += f"{status} {item_name} — {i['quantity']}\n"
+            bot.edit_message_text(msg, call.message.chat.id, call.message.message_id, parse_mode='Markdown')
+            # Надсилаємо сповіщення Шефу
+            bot.send_message(ADMIN_ID, f"👩‍🍳 Кухня сформувала **список закупів** на сьогодні.\\nНатисни `📋 Список закупів` в панелі.", parse_mode='Markdown')
+            return
+
         if data.startswith("shop_buy_") or data == "shop_clear":
             if user_id != ADMIN_ID:
                 bot.answer_callback_query(call.id, "❌ Доступно тільки Шефу")
@@ -516,10 +521,11 @@ def handle_callback(call):
                 msg_text = "📋 **Список закупів**\n\n"
                 for item in items:
                     status_icon = "✅" if item['is_purchased'] else "⬜"
-                    msg_text += f"{status_icon} **{item['name']}** — {item['quantity']}\n"
+                    item_name = item['name'] or f"📝 #{item['id']}"
+                    msg_text += f"{status_icon} **{item_name}** — {item['quantity']}\n"
                     if not item['is_purchased']:
                         markup.add(InlineKeyboardButton(
-                            f"✅ Куплено: {item['name']}",
+                            f"✅ Куплено: {item_name}",
                             callback_data=f"shop_buy_{item['id']}"
                         ))
                 if items:

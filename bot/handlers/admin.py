@@ -144,10 +144,11 @@ def admin_show_shopping_list(msg):
     msg_text = "📋 **Список закупів**\n\n"
     for item in items:
         status_icon = "✅" if item['is_purchased'] else "⬜"
-        msg_text += f"{status_icon} **{item['name']}** — {item['quantity']}\n"
+        item_name = item['name'] or f"📝 #{item['id']}"
+        msg_text += f"{status_icon} **{item_name}** — {item['quantity']}\n"
         if not item['is_purchased']:
             markup.add(InlineKeyboardButton(
-                f"✅ Куплено: {item['name']}",
+                f"✅ Куплено: {item_name}",
                 callback_data=f"shop_buy_{item['id']}"
             ))
 

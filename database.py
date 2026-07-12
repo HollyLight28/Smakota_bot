@@ -710,7 +710,7 @@ def get_active_shopping_list(date=None):
         rows = conn.execute('''
             SELECT asl.*, sp.name, sp.unit, sp.department_id
             FROM active_shopping_list asl
-            JOIN shopping_products sp ON asl.product_id = sp.id
+            LEFT JOIN shopping_products sp ON asl.product_id = sp.id
             WHERE asl.date = ?
             ORDER BY sp.department_id, sp.name
         ''', (date,)).fetchall()
@@ -718,7 +718,7 @@ def get_active_shopping_list(date=None):
         rows = conn.execute('''
             SELECT asl.*, sp.name, sp.unit, sp.department_id
             FROM active_shopping_list asl
-            JOIN shopping_products sp ON asl.product_id = sp.id
+            LEFT JOIN shopping_products sp ON asl.product_id = sp.id
             WHERE asl.date = date('now')
             ORDER BY sp.department_id, sp.name
         ''').fetchall()
