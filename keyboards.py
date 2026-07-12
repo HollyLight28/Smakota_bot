@@ -43,8 +43,7 @@ def get_courier_keyboard(user_id=None):
 def get_admin_keyboard():
     """Майстер-клавіатура для Адміна/Шефа."""
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.row('📋 Нові замовлення', '📊 Виручка за сьогодні')
-    keyboard.row('🛒 Поточний кошик', '📊 Моніторинг')
+    keyboard.row('📋 Нові замовлення', '📋 Список закупів')
     keyboard.row('📣 Розсилка')
     return keyboard
 

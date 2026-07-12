@@ -131,6 +131,30 @@ def show_monitoring(message):
         bot.send_message(message.chat.id, msg, reply_markup=markup)
 
 
+@bot.message_handler(func=lambda msg: msg.text == '📋 Список закупів')
+def admin_show_shopping_list(msg):
+    """Шеф бачить список закупів."""
+    if msg.from_user.id != ADMIN_ID: return
+    items = db.get_active_shopping_list()
+    if not items:
+        bot.send_message(msg.chat.id, "✅ **Список закупів порожній.** Все є в наявності!", parse_mode='Markdown')
+        return
+
+    markup = InlineKeyboardMarkup(row_width=1)
+    msg_text = "📋 **Список закупів**\n\n"
+    for item in items:
+        status_icon = "✅" if item['is_purchased'] else "⬜"
+        msg_text += f"{status_icon} **{item['name']}** — {item['quantity']}\n"
+        if not item['is_purchased']:
+            markup.add(InlineKeyboardButton(
+                f"✅ Куплено: {item['name']}",
+                callback_data=f"shop_buy_{item['id']}"
+            ))
+
+    markup.add(InlineKeyboardButton("🔄 Очистити список", callback_data="shop_clear"))
+    bot.send_message(msg.chat.id, msg_text, reply_markup=markup, parse_mode='Markdown')
+
+
 @bot.message_handler(func=lambda message: message.text == '📣 Розсилка')
 def start_mailing(message):
     if message.from_user.id != ADMIN_ID: return

@@ -501,6 +501,37 @@ def handle_callback(call):
             bot.answer_callback_query(call.id)
             return
 
+        # === Shopping List Admin Callbacks (Шеф) ===
+        if data.startswith("shop_buy_") or data == "shop_clear":
+            if user_id != ADMIN_ID:
+                bot.answer_callback_query(call.id, "❌ Доступно тільки Шефу")
+                return
+
+            if data.startswith("shop_buy_"):
+                list_id = int(data.replace("shop_buy_", ""))
+                db.mark_as_purchased(list_id)
+                bot.answer_callback_query(call.id, "✅ Позначено як куплено!")
+                items = db.get_active_shopping_list()
+                markup = InlineKeyboardMarkup(row_width=1)
+                msg_text = "📋 **Список закупів**\n\n"
+                for item in items:
+                    status_icon = "✅" if item['is_purchased'] else "⬜"
+                    msg_text += f"{status_icon} **{item['name']}** — {item['quantity']}\n"
+                    if not item['is_purchased']:
+                        markup.add(InlineKeyboardButton(
+                            f"✅ Куплено: {item['name']}",
+                            callback_data=f"shop_buy_{item['id']}"
+                        ))
+                if items:
+                    markup.add(InlineKeyboardButton("🔄 Очистити список", callback_data="shop_clear"))
+                bot.edit_message_text(msg_text, call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode='Markdown')
+
+            elif data == "shop_clear":
+                db.clear_todays_list()
+                bot.edit_message_text("✅ Список закупів очищено.", call.message.chat.id, call.message.message_id)
+                bot.answer_callback_query(call.id, "🧹 Список очищено!")
+            return
+
     except Exception as e:
         logger.error(f"Callback error: {e}")
         try:
