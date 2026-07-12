@@ -232,6 +232,11 @@ def setup_database():
 
         conn.commit()
         conn.close()
+
+        # Setup shopping products tables + seed data (separate connections to avoid lock conflicts)
+        setup_shopping_tables()
+        seed_shopping_products()
+
         logging.info("Database setup complete. Tables are ready.")
     except sqlite3.Error as e:
         logging.error(f"Database error during setup: {e}")
@@ -526,6 +531,107 @@ def add_shopping_template(name):
     conn = get_db_connection()
     conn.execute('INSERT OR IGNORE INTO shopping_templates (item_name) VALUES (?)', (name,))
     conn.commit()
+
+# --- Shopping Products (нові цехи + продукти для закупів) ---
+
+def setup_shopping_tables():
+    """Create shopping_departments and shopping_products tables."""
+    conn = sqlite3.connect(DATABASE_FILE)
+    conn.execute("PRAGMA foreign_keys = ON")
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS shopping_departments (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT
+        )
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS shopping_products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            unit TEXT NOT NULL,
+            department_id TEXT NOT NULL,
+            is_active INTEGER DEFAULT 1,
+            FOREIGN KEY (department_id) REFERENCES shopping_departments(id)
+        )
+    ''')
+
+    conn.commit()
+    conn.close()
+    logging.info("Shopping tables (departments + products) ready.")
+
+def seed_shopping_products():
+    """Load seed data from shopping_products_seed.json into tables."""
+    import os
+    seed_file = os.path.join(os.path.dirname(__file__), 'shopping_products_seed.json')
+    if not os.path.exists(seed_file):
+        logging.warning(f"Seed file not found: {seed_file}")
+        return
+
+    with open(seed_file, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+
+    conn = sqlite3.connect(DATABASE_FILE)
+    conn.execute("PRAGMA foreign_keys = ON")
+    cursor = conn.cursor()
+
+    for dept in data['departments']:
+        cursor.execute(
+            'INSERT OR IGNORE INTO shopping_departments (id, name, description) VALUES (?, ?, ?)',
+            (dept['id'], dept['name'], dept['description'])
+        )
+
+    for prod in data['products']:
+        cursor.execute(
+            'INSERT OR IGNORE INTO shopping_products (name, unit, department_id) VALUES (?, ?, ?)',
+            (prod['name'], prod['unit'], prod['department'])
+        )
+
+    conn.commit()
+    conn.close()
+    logging.info(f"Seeded {len(data['departments'])} departments and {len(data['products'])} products.")
+
+def get_departments():
+    """Return all shopping departments."""
+    conn = get_db_connection()
+    return conn.execute('SELECT * FROM shopping_departments ORDER BY id').fetchall()
+
+def get_products_by_department(department_id):
+    """Return active products for a department."""
+    conn = get_db_connection()
+    return conn.execute(
+        'SELECT * FROM shopping_products WHERE department_id = ? AND is_active = 1 ORDER BY name',
+        (department_id,)
+    ).fetchall()
+
+def add_shopping_product(name, unit, department_id):
+    """Add a new shopping product."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            'INSERT INTO shopping_products (name, unit, department_id) VALUES (?, ?, ?)',
+            (name, unit, department_id)
+        )
+        conn.commit()
+        return cursor.lastrowid
+    except sqlite3.IntegrityError:
+        logging.warning(f"Product '{name}' already exists.")
+        return None
+
+def deactivate_shopping_product(product_id):
+    """Deactivate a shopping product (soft delete)."""
+    conn = get_db_connection()
+    conn.execute('UPDATE shopping_products SET is_active = 0 WHERE id = ?', (product_id,))
+    conn.commit()
+
+def get_active_shopping_products():
+    """Return all active shopping products."""
+    conn = get_db_connection()
+    return conn.execute('SELECT * FROM shopping_products WHERE is_active = 1 ORDER BY name').fetchall()
 
 # --- Shopping List Functions ---
 
