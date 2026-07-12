@@ -198,7 +198,7 @@ def handle_callback(call):
             bot.edit_message_text(f"🏁 **Чек #{order_id} закрито.** Оплата отримана.", call.message.chat.id, call.message.message_id, parse_mode='Markdown')
             return
 
-        # === Shopping List Callbacks ===
+        # === Shopping List Callbacks (legacy) ===
         elif data.startswith("buy_item_"):
             item_id = int(data.split("_")[2])
             db.delete_shopping_item(item_id)
@@ -215,6 +215,83 @@ def handle_callback(call):
                     markup.add(InlineKeyboardButton(f"✅ Куплено: {item['item_name']}", callback_data=f"buy_item_{item['id']}"))
                 bot.edit_message_text(msg, call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode='Markdown')
             return
+
+        # === Active Shopping List (inline product selection) ===
+        elif data.startswith("shop_dept_"):
+            dept_id = data.replace("shop_dept_", "")
+            products = db.get_products_by_department(dept_id)
+            if not products:
+                bot.answer_callback_query(call.id, "❌ Немає продуктів у цьому цеху")
+                return
+            markup = InlineKeyboardMarkup(row_width=1)
+            for p in products:
+                markup.add(InlineKeyboardButton(
+                    f"{p['name']} ({p['unit']})",
+                    callback_data=f"shop_prod_{p['id']}"
+                ))
+            markup.add(InlineKeyboardButton("🔙 Назад до цехів", callback_data="shop_back"))
+            bot.edit_message_text(
+                f"📋 **Продукти:**\nОбери продукт, щоб додати кількість:",
+                call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode='Markdown'
+            )
+
+        elif data.startswith("shop_prod_"):
+            prod_id = int(data.replace("shop_prod_", ""))
+            prod = db.get_shopping_product_by_id(prod_id)
+            if not prod:
+                bot.answer_callback_query(call.id, "❌ Продукт не знайдено")
+                return
+            markup = InlineKeyboardMarkup(row_width=3)
+            markup.row(
+                InlineKeyboardButton("+1", callback_data=f"shop_qty_{prod_id}_+1"),
+                InlineKeyboardButton("+0.5", callback_data=f"shop_qty_{prod_id}_+0.5"),
+                InlineKeyboardButton("+5", callback_data=f"shop_qty_{prod_id}_+5")
+            )
+            bot.edit_message_text(
+                f"{prod['name']}\nСкільки додати?",
+                call.message.chat.id, call.message.message_id, reply_markup=markup
+            )
+
+        elif data.startswith("shop_qty_"):
+            parts = data.split("_")
+            prod_id = int(parts[2])
+            qty_str = parts[3]  # e.g. "+1", "+0.5", "+5"
+            try:
+                qty = float(qty_str)
+            except ValueError:
+                bot.answer_callback_query(call.id, "❌ Невірна кількість")
+                return
+            prod = db.get_shopping_product_by_id(prod_id)
+            if not prod:
+                bot.answer_callback_query(call.id, "❌ Продукт не знайдено")
+                return
+            db.add_to_active_shopping_list(prod_id, qty, call.from_user.id)
+            bot.answer_callback_query(call.id, f"✅ Додано: {prod['name']}")
+
+        elif data == "shop_back":
+            depts = db.get_departments()
+            markup = InlineKeyboardMarkup(row_width=1)
+            for d in depts:
+                markup.add(InlineKeyboardButton(d['name'], callback_data=f"shop_dept_{d['id']}"))
+            markup.add(InlineKeyboardButton("✅ Готово (до Шефа)", callback_data="shop_done"))
+            bot.edit_message_text(
+                "📋 **Список закупів**\nОбери цех:",
+                call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode='Markdown'
+            )
+
+        elif data == "shop_done":
+            items = db.get_active_shopping_list()
+            if not items:
+                bot.edit_message_text(
+                    "✅ Список порожній. Додай продукти через цехи.",
+                    call.message.chat.id, call.message.message_id
+                )
+                return
+            msg = "📋 **Список закупів сформовано!**\n\n"
+            for i in items:
+                status = "✅" if i['is_purchased'] else "⬜"
+                msg += f"{status} {i['name']} — {i['quantity']}\n"
+            bot.edit_message_text(msg, call.message.chat.id, call.message.message_id, parse_mode='Markdown')
 
         # === Shift Control ===
         if data == "shift_on":

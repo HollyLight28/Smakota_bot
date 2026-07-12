@@ -236,6 +236,7 @@ def setup_database():
         # Setup shopping products tables + seed data (separate connections to avoid lock conflicts)
         setup_shopping_tables()
         seed_shopping_products()
+        setup_active_shopping_list_table()
 
         logging.info("Database setup complete. Tables are ready.")
     except sqlite3.Error as e:
@@ -633,7 +634,114 @@ def get_active_shopping_products():
     conn = get_db_connection()
     return conn.execute('SELECT * FROM shopping_products WHERE is_active = 1 ORDER BY name').fetchall()
 
-# --- Shopping List Functions ---
+# --- Active Shopping List (inline product selection by department) ---
+
+def setup_active_shopping_list_table():
+    """Create the active_shopping_list table."""
+    conn = sqlite3.connect(DATABASE_FILE)
+    conn.execute("PRAGMA foreign_keys = ON")
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS active_shopping_list (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_id INTEGER NOT NULL,
+            quantity TEXT NOT NULL,
+            added_by INTEGER NOT NULL,
+            date TEXT NOT NULL DEFAULT (date('now')),
+            is_purchased INTEGER DEFAULT 0,
+            purchased_at TIMESTAMP,
+            FOREIGN KEY (product_id) REFERENCES shopping_products(id)
+        )
+    ''')
+    conn.commit()
+    conn.close()
+    logging.info("active_shopping_list table ready.")
+
+def get_shopping_product_by_id(product_id):
+    """Fetch a single shopping product by id."""
+    conn = get_db_connection()
+    return conn.execute('SELECT * FROM shopping_products WHERE id = ?', (product_id,)).fetchone()
+
+def add_to_active_shopping_list(product_id, quantity, added_by):
+    """
+    Add item to active shopping list.
+    If product_id already exists today and is not purchased — add to quantity.
+    quantity is a numeric value (int/float), formatted with the product's unit.
+    """
+    conn = get_db_connection()
+    product = get_shopping_product_by_id(product_id)
+    if not product:
+        return False
+
+    existing = conn.execute(
+        'SELECT * FROM active_shopping_list WHERE product_id = ? AND date = date(\'now\') AND is_purchased = 0',
+        (product_id,)
+    ).fetchone()
+
+    if existing:
+        parts = existing['quantity'].split()
+        try:
+            current_qty = float(parts[0]) if parts else 0
+        except ValueError:
+            current_qty = 0
+        new_qty = current_qty + quantity
+        qty_str = str(int(new_qty)) if new_qty == int(new_qty) else str(new_qty)
+        conn.execute(
+            'UPDATE active_shopping_list SET quantity = ? WHERE id = ?',
+            (f"{qty_str} {product['unit']}", existing['id'])
+        )
+    else:
+        qty_str = str(int(quantity)) if quantity == int(quantity) else str(quantity)
+        conn.execute(
+            'INSERT INTO active_shopping_list (product_id, quantity, added_by) VALUES (?, ?, ?)',
+            (product_id, f"{qty_str} {product['unit']}", added_by)
+        )
+
+    conn.commit()
+    return True
+
+def get_active_shopping_list(date=None):
+    """
+    Return all active shopping list items joined with product details.
+    Defaults to today's list. Ordered by department then product name.
+    """
+    conn = get_db_connection()
+    if date:
+        rows = conn.execute('''
+            SELECT asl.*, sp.name, sp.unit, sp.department_id
+            FROM active_shopping_list asl
+            JOIN shopping_products sp ON asl.product_id = sp.id
+            WHERE asl.date = ?
+            ORDER BY sp.department_id, sp.name
+        ''', (date,)).fetchall()
+    else:
+        rows = conn.execute('''
+            SELECT asl.*, sp.name, sp.unit, sp.department_id
+            FROM active_shopping_list asl
+            JOIN shopping_products sp ON asl.product_id = sp.id
+            WHERE asl.date = date('now')
+            ORDER BY sp.department_id, sp.name
+        ''').fetchall()
+    return rows
+
+def mark_as_purchased(list_id):
+    """Mark an item as purchased."""
+    conn = get_db_connection()
+    conn.execute(
+        'UPDATE active_shopping_list SET is_purchased = 1, purchased_at = datetime(\'now\') WHERE id = ?',
+        (list_id,)
+    )
+    conn.commit()
+
+def clear_todays_list():
+    """Mark all today's items as purchased (or delete them)."""
+    conn = get_db_connection()
+    conn.execute(
+        'UPDATE active_shopping_list SET is_purchased = 1, purchased_at = datetime(\'now\') WHERE date = date(\'now\') AND is_purchased = 0'
+    )
+    conn.commit()
+
+# --- Legacy Shopping List Functions ---
 
 def get_shopping_list():
     """Fetches the entire shopping list."""
