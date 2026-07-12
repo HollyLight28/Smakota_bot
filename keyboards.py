@@ -179,4 +179,5 @@ def get_role_selection_keyboard():
     keyboard.add(InlineKeyboardButton("🛵 Кур'єр", callback_data="set_role_courier"))
     keyboard.add(InlineKeyboardButton("👤 Клієнт", callback_data="set_role_client"))
     keyboard.add(InlineKeyboardButton("💃 Зал", callback_data="set_role_hall"))
+    keyboard.add(InlineKeyboardButton("👩‍🍳 Кухня", callback_data="set_role_kitchen"))
     return keyboard

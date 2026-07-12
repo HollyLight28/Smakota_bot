@@ -46,6 +46,11 @@ def handle_callback(call):
                     db.add_hall_staff(f"Шеф_{call.from_user.first_name}", user_id)
                 bot.edit_message_text("💃 Інтерфейс змінено на **Зал (Наташа)**.", call.message.chat.id, call.message.message_id, reply_markup=None, parse_mode='Markdown')
                 bot.send_message(user_id, "Панель залу:", reply_markup=keyboards.get_hall_staff_keyboard())
+            elif role == "kitchen":
+                if not any(c['chat_id'] == user_id for c in db.get_chefs()):
+                    db.add_chef(f"Кухар_{call.from_user.first_name}", user_id)
+                bot.edit_message_text("👩‍🍳 Інтерфейс змінено на **Кухня**.", call.message.chat.id, call.message.message_id, reply_markup=None, parse_mode='Markdown')
+                bot.send_message(user_id, "Панель кухні:", reply_markup=keyboards.get_kitchen_keyboard())
             elif role == "client":
                 bot.edit_message_text("👤 Інтерфейс змінено на **Клієнт**.", call.message.chat.id, call.message.message_id, reply_markup=None, parse_mode='Markdown')
                 bot.send_message(user_id, "Бачиш бота як звичайний покупець.", reply_markup=keyboards.get_client_keyboard())
